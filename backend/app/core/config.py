@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str
     GEMINI_API_KEY: str
+    DEFAULT_API_KEY: str = "infermesh-dev-key-123"
     ENVIRONMENT: str = "development"
 
     class Config:
