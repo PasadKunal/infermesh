@@ -17,6 +17,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+
     op.create_table('api_keys',
         sa.Column('id', sa.Uuid(), nullable=False),
         sa.Column('key_hash', sa.String(), nullable=False),
