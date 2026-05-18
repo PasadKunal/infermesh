@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import inference
+from app.routers import inference, metrics
 from app.core.config import settings
 
 app = FastAPI(
@@ -17,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(inference.router)
+app.include_router(metrics.router)
 
 @app.get("/health")
 async def health():
