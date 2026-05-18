@@ -44,6 +44,10 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-asyncio httpx
 
+      - name: Enable pgvector extension
+        run: |
+          PGPASSWORD=infermesh123 psql -h localhost -U infermesh -d infermesh_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
       - name: Run migrations
         env:
           DATABASE_URL: postgresql+asyncpg://infermesh:infermesh123@localhost:5432/infermesh_db
