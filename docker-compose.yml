@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: infermesh_postgres
+    environment:
+      POSTGRES_USER: infermesh
+      POSTGRES_PASSWORD: infermesh123
+      POSTGRES_DB: infermesh_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: infermesh_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
