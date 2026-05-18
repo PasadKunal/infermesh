@@ -1,0 +1,41 @@
+import uuid
+from datetime import datetime
+from sqlalchemy import String, Integer, Boolean, Numeric, DateTime, ForeignKey, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from pgvector.sqlalchemy import Vector
+from app.db.postgres import Base
+
+class APIKey(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    key_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class InferenceLog(Base):
+    __tablename__ = "inference_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    api_key_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("api_keys.id"), nullable=True)
+    provider: Mapped[str] = mapped_column(String, nullable=False)
+    model: Mapped[str] = mapped_column(String, nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int] = mapped_column(Integer, nullable=True)
+    cost_usd: Mapped[float] = mapped_column(Numeric(10, 6), nullable=True)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=True)
+    cache_hit: Mapped[bool] = mapped_column(Boolean, default=False)
+    status_code: Mapped[int] = mapped_column(Integer, default=200)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class PromptCache(Base):
+    __tablename__ = "prompt_cache"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    prompt_embedding: Mapped[list] = mapped_column(Vector(1536))
+    prompt_text: Mapped[str] = mapped_column(Text)
+    response_text: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(String)
+    hit_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
