@@ -33,7 +33,7 @@ class PromptCache(Base):
     __tablename__ = "prompt_cache"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    prompt_embedding: Mapped[list] = mapped_column(Vector(1536))
+    prompt_embedding: Mapped[list] = mapped_column(Vector(3072))
     prompt_text: Mapped[str] = mapped_column(Text)
     response_text: Mapped[str] = mapped_column(Text)
     model: Mapped[str] = mapped_column(String)
