@@ -5,11 +5,13 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts"
 
-const API = "http://localhost:8000"
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
+
 const PURPLE = "#6C63FF"
 const TEAL = "#00C9A7"
 const CORAL = "#FF6B6B"
 const AMBER = "#FFB347"
+const PROVIDER_COLORS = [PURPLE, TEAL, CORAL, AMBER]
 
 function StatCard({ label, value, sub, accent }) {
   return (
@@ -40,7 +42,7 @@ function ChartCard({ title, children }) {
       border: "1px solid #f0f0f0",
       boxShadow: "0 2px 12px rgba(0,0,0,0.04)"
     }}>
-      <p style={{ fontSize: 13, fontWeight: 600, color: "#555", marginBottom: 20, letterSpacing: "0.04em", textTransform: "uppercase" }}>{title}</p>
+      <p style={{ fontSize: 12, fontWeight: 600, color: "#888", marginBottom: 20, letterSpacing: "0.06em", textTransform: "uppercase" }}>{title}</p>
       {children}
     </div>
   )
@@ -50,7 +52,7 @@ const CustomTooltip = ({ active, payload, label, prefix = "", suffix = "" }) => 
   if (active && payload && payload.length) {
     return (
       <div style={{ background: "#1a1a2e", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13 }}>
-        <p style={{ margin: 0, color: "#aaa", marginBottom: 4 }}>{label}</p>
+        {label && <p style={{ margin: 0, color: "#aaa", marginBottom: 4 }}>{label}</p>}
         <p style={{ margin: 0, fontWeight: 600 }}>{prefix}{payload[0].value}{suffix}</p>
       </div>
     )
@@ -64,6 +66,7 @@ export default function App() {
   const [latency, setLatency] = useState(null)
   const [providers, setProviders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
 
   const fetchData = () => {
@@ -78,13 +81,17 @@ export default function App() {
       setLatency(l.data)
       setProviders(p.data)
       setLoading(false)
+      setError(false)
       setLastUpdated(new Date().toLocaleTimeString())
+    }).catch(() => {
+      setLoading(false)
+      setError(true)
     })
   }
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 10000)
+    const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -93,6 +100,20 @@ export default function App() {
       <div style={{ textAlign: "center" }}>
         <div style={{ width: 40, height: 40, border: `3px solid ${PURPLE}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
         <p style={{ color: "#aaa", fontSize: 14 }}>Loading metrics...</p>
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+
+  if (error) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f7f8fc" }}>
+      <div style={{ textAlign: "center" }}>
+        <p style={{ fontSize: 32, marginBottom: 8 }}>⚠️</p>
+        <p style={{ color: "#333", fontWeight: 600, fontSize: 16 }}>Could not connect to the API</p>
+        <p style={{ color: "#aaa", fontSize: 13, marginBottom: 20 }}>Make sure the backend is running at {API}</p>
+        <button onClick={fetchData} style={{ padding: "10px 24px", borderRadius: 8, background: PURPLE, color: "#fff", border: "none", cursor: "pointer", fontSize: 14 }}>
+          Retry
+        </button>
       </div>
     </div>
   )
@@ -103,7 +124,7 @@ export default function App() {
     { name: "p99", value: Math.round(latency.p99_ms) }
   ] : []
 
-  const PROVIDER_COLORS = [PURPLE, TEAL, CORAL, AMBER]
+  const hasData = summary && summary.total_requests > 0
 
   return (
     <div style={{ minHeight: "100vh", background: "#f7f8fc", fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -114,17 +135,17 @@ export default function App() {
             <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${PURPLE}, ${TEAL})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>I</span>
             </div>
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 16, letterSpacing: "0.02em" }}>InferMesh</span>
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>InferMesh</span>
             <span style={{ background: "rgba(108,99,255,0.25)", color: "#a89fff", fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 500 }}>Gateway</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: TEAL, boxShadow: `0 0 6px ${TEAL}` }} />
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: TEAL }} />
             <span style={{ color: "#888", fontSize: 12 }}>Live · updated {lastUpdated}</span>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "2rem 2rem" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "2rem" }}>
 
         <div style={{ marginBottom: "2rem" }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Overview</h1>
@@ -138,76 +159,78 @@ export default function App() {
           <StatCard label="Cache Hit Rate" value={`${summary.cache_hit_rate}%`} sub="semantic cache" accent={TEAL} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: "2rem" }}>
-
-          <ChartCard title="Cost over time">
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={costData}>
-                <defs>
-                  <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={PURPLE} stopOpacity={0.15} />
-                    <stop offset="95%" stopColor={PURPLE} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#bbb" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#bbb" }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip prefix="$" />} />
-                <Line type="monotone" dataKey="cost" stroke={PURPLE} strokeWidth={2.5} dot={{ fill: PURPLE, r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard title="Latency percentiles">
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={latencyData} barSize={48}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#bbb" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#bbb" }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip suffix="ms" />} />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                  {latencyData.map((_, i) => (
-                    <Cell key={i} fill={[TEAL, AMBER, CORAL][i]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-        </div>
-
-        <ChartCard title="Provider breakdown">
-          <div style={{ display: "flex", alignItems: "center", gap: 48 }}>
-            <PieChart width={180} height={180}>
-              <Pie data={providers} dataKey="requests" nameKey="provider" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                {providers.map((_, i) => (
-                  <Cell key={i} fill={PROVIDER_COLORS[i % PROVIDER_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-            <div style={{ flex: 1 }}>
-              {providers.map((p, i) => (
-                <div key={p.provider} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f5f5f5" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: 3, background: PROVIDER_COLORS[i % PROVIDER_COLORS.length] }} />
-                    <span style={{ fontSize: 14, fontWeight: 500, color: "#333", textTransform: "capitalize" }}>{p.provider}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 24 }}>
-                    <span style={{ fontSize: 13, color: "#888" }}>{p.requests} requests</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#333", minWidth: 80, textAlign: "right" }}>${p.cost.toFixed(6)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {!hasData ? (
+          <div style={{ background: "#fff", borderRadius: 16, padding: "4rem", textAlign: "center", border: "1px solid #f0f0f0" }}>
+            <p style={{ fontSize: 32, marginBottom: 8 }}>📭</p>
+            <p style={{ color: "#333", fontWeight: 600, fontSize: 16 }}>No requests yet</p>
+            <p style={{ color: "#aaa", fontSize: 13, marginTop: 4 }}>Send your first request to <code style={{ background: "#f5f5f5", padding: "2px 6px", borderRadius: 4 }}>POST /v1/chat</code> to see metrics here</p>
           </div>
-        </ChartCard>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: "2rem" }}>
+              <ChartCard title="Cost over time">
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={costData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#bbb" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#bbb" }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<CustomTooltip prefix="$" />} />
+                    <Line type="monotone" dataKey="cost" stroke={PURPLE} strokeWidth={2.5} dot={{ fill: PURPLE, r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartCard>
 
+              <ChartCard title="Latency percentiles">
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={latencyData} barSize={48}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#bbb" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#bbb" }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<CustomTooltip suffix="ms" />} />
+                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                      {latencyData.map((_, i) => (
+                        <Cell key={i} fill={[TEAL, AMBER, CORAL][i]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            </div>
+
+            <ChartCard title="Provider breakdown">
+              <div style={{ display: "flex", alignItems: "center", gap: 48 }}>
+                <PieChart width={180} height={180}>
+                  <Pie data={providers} dataKey="requests" nameKey="provider" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                    {providers.map((_, i) => (
+                      <Cell key={i} fill={PROVIDER_COLORS[i % PROVIDER_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+                <div style={{ flex: 1 }}>
+                  {providers.map((p, i) => (
+                    <div key={p.provider} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f5f5f5" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: 3, background: PROVIDER_COLORS[i % PROVIDER_COLORS.length] }} />
+                        <span style={{ fontSize: 14, fontWeight: 500, color: "#333", textTransform: "capitalize" }}>{p.provider}</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 24 }}>
+                        <span style={{ fontSize: 13, color: "#888" }}>{p.requests} requests</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#333", minWidth: 80, textAlign: "right" }}>${p.cost.toFixed(6)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </ChartCard>
+          </>
+        )}
       </div>
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
+        body { margin: 0; }
       `}</style>
     </div>
   )
