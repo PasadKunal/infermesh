@@ -5,6 +5,7 @@ __pycache__/
 .Python
 venv/
 env/
+imvenv/
 .env
 *.egg-info/
 dist/
@@ -18,4 +19,3 @@ node_modules/
 .vscode/
 .idea/
 *.swp
-imvenv/
