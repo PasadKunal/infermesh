@@ -31,16 +31,15 @@ async def check_cache(prompt: str, db: AsyncSession) -> str | None:
     cached = result.scalar_one_or_none()
 
     if cached is None:
-        print("CACHE: no entries found")
         return None
 
-    distance_result = await db.execute(
-        select(PromptCache.prompt_embedding.cosine_distance(embedding))
-        .where(PromptCache.id == cached.id)
+    distance = float(
+        (await db.execute(
+            select(PromptCache.prompt_embedding.cosine_distance(embedding))
+            .where(PromptCache.id == cached.id)
+        )).scalar()
     )
-    distance = float(distance_result.scalar())
     similarity = 1 - distance
-    print(f"CACHE: similarity={similarity:.4f} threshold={SIMILARITY_THRESHOLD} prompt='{prompt[:50]}'")
 
     if similarity >= SIMILARITY_THRESHOLD:
         await db.execute(
@@ -63,4 +62,3 @@ async def store_cache(prompt: str, response: str, model: str, db: AsyncSession):
     )
     db.add(entry)
     await db.commit()
-    print(f"CACHE: stored prompt='{prompt[:50]}'")
