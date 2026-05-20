@@ -1,8 +1,6 @@
 # InferMesh
 
-A self-hosted LLM inference gateway with semantic caching, cost tracking, rate limiting, and a real-time metrics dashboard.
-
-Think of it as a lightweight self-hosted version of Helicone or LiteLLM.
+A self-hosted LLM inference gateway with semantic caching, cost tracking, rate limiting, and a real-time metrics dashboard. Each user brings their own Gemini API key and gets an isolated dashboard showing their own usage.
 
 ## Live Demo
 
@@ -12,57 +10,95 @@ Think of it as a lightweight self-hosted version of Helicone or LiteLLM.
 
 ## What it does
 
-- **Semantic cache** — similar prompts return cached responses instantly at $0 cost using pgvector cosine similarity
-- **Request logging** — every request logged with provider, model, tokens, cost, latency, and cache hit status
-- **Rate limiting** — Redis sliding window, 60 requests/min per API key
-- **Metrics dashboard** — live React dashboard showing cost, latency percentiles, cache hit rate, and provider breakdown
-- **Multi-provider ready** — abstract provider interface, adding OpenAI or Anthropic is one new file
+- **Semantic cache** - similar prompts return cached responses instantly at $0 cost using pgvector cosine similarity with adaptive thresholds based on prompt type
+- **Per-user isolation** - each user brings their own Gemini API key, stored encrypted. They pay their own Gemini bill and see only their own metrics
+- **Request logging** - every request logged with provider, model, tokens, cost, latency, and cache hit status
+- **Rate limiting** - Redis sliding window, 60 requests per minute per API key
+- **Metrics dashboard** - live React dashboard showing cost, latency percentiles, cache hit rate, and provider breakdown
+- **Playground** - built-in chat interface to test prompts and watch the cache in action
+- **Multi-provider ready** - abstract provider interface, adding OpenAI or Anthropic is one new file
 
 ## Stack
 
-- **Backend** — FastAPI, PostgreSQL + pgvector, Redis, Alembic, SQLAlchemy
-- **Frontend** — React, Vite, Recharts
-- **Infra** — Docker, Railway, Vercel, GitHub Actions
+- **Backend** - FastAPI, PostgreSQL + pgvector, Redis, Alembic, SQLAlchemy
+- **Frontend** - React, Vite, Recharts, React Router
+- **Infra** - Docker, Railway, Vercel, GitHub Actions
+
+## How it works
+
+```txt
+User registers at infermesh.vercel.app
+        |
+        +-- Adds their Gemini API key in Settings (stored encrypted)
+        +-- Creates an InferMesh API key (im-...)
+        |
+        v
+App sends request with x-api-key: im-...
+        |
+        v
+InferMesh Gateway
+        |
+        +-- Check semantic cache (pgvector cosine similarity)
+        |       Cache hit  -> return instantly, $0 cost
+        |       Cache miss -> call user's Gemini key
+        |
+        +-- Log request to user's account
+        +-- Return response
+        |
+        v
+User dashboard shows their usage, cost, cache hit rate
+```
+
+## Getting started (new user)
+
+1. Register at https://infermesh.vercel.app/register
+2. Go to Settings, add your Gemini API key (free at aistudio.google.com)
+3. Create an InferMesh API key
+4. Send requests through the gateway:
+
+```bash
+curl -X POST https://infermesh-production.up.railway.app/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: im-your-key-here" \
+  -d '{
+    "messages": [{"role": "user", "content": "What is Docker?"}],
+    "model": "gemini-3.1-flash-lite-preview"
+  }'
+```
+
+5. Visit your dashboard to see metrics
+6. Or use the Playground at https://infermesh.vercel.app/playground to test interactively
 
 ## Running locally
 
-**Prerequisites:** Docker Desktop, a Gemini API key (free at aistudio.google.com)
+**Prerequisites:** Docker Desktop, Python 3.11, Node 18+, a Gemini API key
 
 ```bash
-# 1. Clone the repo
 git clone https://github.com/PasadKunal/infermesh
 cd infermesh
 
-# 2. Set up environment variables
-cp backend/.env.example backend/.env
-# Open backend/.env and add your GEMINI_API_KEY
+docker compose up -d
 
-# 3. Start everything
-docker compose up --build
+cd backend
+python3.11 -m venv imvenv && source imvenv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# Add your GEMINI_API_KEY and ENCRYPTION_KEY to .env
+# Generate ENCRYPTION_KEY: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+
+# New terminal
+cd frontend
+npm install
+npm run dev
 ```
-
-That's it. Three commands.
 
 - Backend: http://localhost:8000
-- Frontend dashboard: http://localhost:5173
+- Frontend: http://localhost:5173
 - API docs: http://localhost:8000/docs
-
-## API Usage
-
-```bash
-# Send an inference request
-curl -X POST http://localhost:8000/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "What is the capital of France?"}], "model": "gemini-3.1-flash-lite-preview"}'
-
-# Send a similar question — returns cache_hit: true instantly
-curl -X POST http://localhost:8000/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Which city is the capital of France?"}], "model": "gemini-3.1-flash-lite-preview"}'
-
-# Check metrics
-curl http://localhost:8000/metrics/summary
-```
 
 ## Environment variables
 
@@ -70,21 +106,33 @@ curl http://localhost:8000/metrics/summary
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
-| `GEMINI_API_KEY` | Get free at aistudio.google.com |
+| `GEMINI_API_KEY` | Your Gemini key, used only for generating embeddings |
+| `ENCRYPTION_KEY` | Fernet key for encrypting user Gemini keys at rest |
+| `SECRET_KEY` | JWT signing secret |
 | `ENVIRONMENT` | `development` or `production` |
+
+## Security
+
+User Gemini API keys are encrypted using Fernet symmetric encryption before being stored in the database. The encryption key lives only in environment variables and is never stored in the database or committed to the repository. Even with full database access, the stored keys are unreadable without the encryption key.
+
+## How semantic caching works
+
+Every prompt is converted to a 3072-dimensional vector using Gemini embeddings. On each request the gateway finds the closest matching vector in the shared cache using cosine similarity. The similarity threshold adapts based on prompt type:
+
+- Short factual questions (under 6 words): threshold 0.88
+- Medium questions (under 12 words): threshold 0.82
+- Long descriptive prompts: threshold 0.72
+
+The cache is shared across all users, so the more users on the platform, the higher the cache hit rate for everyone.
 
 ## Running tests
 
 ```bash
 cd backend
-pip install -r requirements.txt
+source imvenv/bin/activate
 pytest tests/ -v
 ```
 
-## How semantic caching works
-
-Every prompt is converted to a 3072-dimensional vector using Gemini embeddings. On each request the gateway finds the closest matching vector in the cache using cosine similarity. If similarity is above 0.82 the cached response is returned — meaning "What is ML?" and "Explain machine learning" both hit the same cache entry.
-
 ## CI/CD
 
-GitHub Actions runs on every push — spins up Postgres and Redis, runs migrations, runs the full test suite. Railway auto-deploys the backend and Vercel auto-deploys the frontend on every push to main.
+GitHub Actions runs on every push. It spins up Postgres and Redis, enables the pgvector extension, runs Alembic migrations, and runs the full pytest suite. Railway auto-deploys the backend and Vercel auto-deploys the frontend on every push to main.
