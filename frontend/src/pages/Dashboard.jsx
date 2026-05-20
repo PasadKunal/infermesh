@@ -10,11 +10,11 @@ const GREEN = "#22c55e"
 const AMBER = "#f59e0b"
 const RED = "#ef4444"
 
-function StatCard({ label, value, sub, trend }) {
+function StatCard({ label, value, sub }) {
   return (
     <div style={{ background: "#161616", border: "1px solid #222", borderRadius: 12, padding: "20px 24px" }}>
       <p style={{ color: "#666", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 10px" }}>{label}</p>
-      <p style={{ color: "#fff", fontSize: 28, fontWeight: 600, margin: "0 0 4px", letterSpacing: "-0.02em" }}>{value}</p>
+      <p style={{ color: "#fff", fontSize: 26, fontWeight: 600, margin: "0 0 4px", letterSpacing: "-0.02em" }}>{value}</p>
       {sub && <p style={{ color: "#555", fontSize: 12, margin: 0 }}>{sub}</p>}
     </div>
   )
@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [costData, setCostData] = useState([])
   const [latency, setLatency] = useState(null)
   const [providers, setProviders] = useState([])
+  const [rateLimit, setRateLimit] = useState(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
 
@@ -47,12 +48,14 @@ export default function Dashboard() {
       apiFetch("/metrics/summary", {}, token),
       apiFetch("/metrics/cost-by-day", {}, token),
       apiFetch("/metrics/latency", {}, token),
-      apiFetch("/metrics/providers", {}, token)
-    ]).then(([s, c, l, p]) => {
+      apiFetch("/metrics/providers", {}, token),
+      apiFetch("/metrics/rate-limit", {}, token)
+    ]).then(([s, c, l, p, rl]) => {
       setSummary(s)
       setCostData(c)
       setLatency(l)
       setProviders(p)
+      setRateLimit(rl)
       setLoading(false)
       setLastUpdated(new Date().toLocaleTimeString())
     }).catch(() => setLoading(false))
@@ -82,6 +85,9 @@ export default function Dashboard() {
     </Layout>
   )
 
+  const rateLimitPct = rateLimit ? Math.round((rateLimit.remaining / rateLimit.limit) * 100) : 100
+  const rateLimitColor = rateLimitPct > 50 ? GREEN : rateLimitPct > 20 ? AMBER : RED
+
   return (
     <Layout>
       <div style={{ padding: "32px 36px", maxWidth: 1200 }}>
@@ -96,11 +102,19 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
           <StatCard label="Total requests" value={(summary?.total_requests || 0).toLocaleString()} />
           <StatCard label="Total cost" value={`$${(summary?.total_cost_usd || 0).toFixed(6)}`} sub="USD" />
           <StatCard label="Avg latency" value={`${Math.round(summary?.avg_latency_ms || 0)}ms`} sub="excl. cache hits" />
           <StatCard label="Cache hit rate" value={`${summary?.cache_hit_rate || 0}%`} sub="semantic cache" />
+          <div style={{ background: "#161616", border: "1px solid #222", borderRadius: 12, padding: "20px 24px" }}>
+            <p style={{ color: "#666", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 10px" }}>Rate limit</p>
+            <p style={{ color: rateLimitColor, fontSize: 26, fontWeight: 600, margin: "0 0 4px", letterSpacing: "-0.02em" }}>{rateLimit?.remaining ?? 60}/60</p>
+            <div style={{ height: 3, background: "#222", borderRadius: 2, marginTop: 8 }}>
+              <div style={{ height: "100%", width: `${rateLimitPct}%`, background: rateLimitColor, borderRadius: 2, transition: "width .3s" }} />
+            </div>
+            <p style={{ color: "#555", fontSize: 11, margin: "6px 0 0" }}>remaining · {rateLimit?.key_name || "no key"}</p>
+          </div>
         </div>
 
         {!hasData ? (
@@ -133,7 +147,7 @@ export default function Dashboard() {
               <div style={{ background: "#161616", border: "1px solid #222", borderRadius: 12, padding: "20px 24px" }}>
                 <p style={{ color: "#888", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 20px" }}>Latency percentiles</p>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={latencyData} barSize={40} style={{ cursor: "default" }}>
+                  <BarChart data={latencyData} barSize={40}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#555" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "#555" }} axisLine={false} tickLine={false} />

@@ -144,3 +144,35 @@ async def history(
         }
         for l in logs if l.prompt_text
     ]
+@router.get("/rate-limit")
+async def rate_limit_info(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    from app.db.models import APIKey
+    result = await db.execute(
+        select(APIKey)
+        .where(APIKey.user_id == user.id, APIKey.is_active == True)
+        .order_by(APIKey.created_at.desc())
+        .limit(1)
+    )
+    key = result.scalar_one_or_none()
+    if not key:
+        return {"limit": 60, "remaining": 60, "key_name": None}
+
+    import redis.asyncio as aioredis
+    from app.core.config import settings
+    r = await aioredis.from_url(settings.REDIS_URL)
+    import time
+    now = int(time.time())
+    window_start = now - 60
+    redis_key = f"rate_limit:{key.key}"
+    count = await r.zcount(redis_key, window_start, now)
+    await r.aclose()
+
+    return {
+        "limit": 60,
+        "remaining": max(0, 60 - int(count)),
+        "used": int(count),
+        "key_name": key.name
+    }
