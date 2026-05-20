@@ -1,5 +1,5 @@
 import secrets
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -46,3 +46,19 @@ async def list_keys(
         }
         for k in keys
     ]
+
+@router.delete("/{key_id}")
+async def delete_key(
+    key_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(APIKey).where(APIKey.id == key_id, APIKey.user_id == user.id)
+    )
+    api_key = result.scalar_one_or_none()
+    if not api_key:
+        raise HTTPException(status_code=404, detail="Key not found")
+    api_key.is_active = False
+    await db.commit()
+    return {"message": "Key deleted"}
