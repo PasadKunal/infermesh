@@ -1,41 +1,39 @@
 import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { apiFetch } from "../api"
+import Layout from "../components/Layout"
 import ReactMarkdown from "react-markdown"
 
-const PURPLE = "#6C63FF"
-const TEAL = "#00C9A7"
+const ACCENT = "#5865f2"
+const GREEN = "#22c55e"
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
 export default function Playground() {
-  const { user, token, logout } = useAuth()
-  const navigate = useNavigate()
+  const { token } = useAuth()
   const [prompt, setPrompt] = useState("")
   const [model, setModel] = useState("gemini-3.1-flash-lite-preview")
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
   const [keys, setKeys] = useState([])
   const [selectedKey, setSelectedKey] = useState(null)
-  const [noKey, setNoKey] = useState(false)
-  const [noGeminiKey, setNoGeminiKey] = useState(false)
+  const [hasGeminiKey, setHasGeminiKey] = useState(true)
+  const [totalSaved, setTotalSaved] = useState(0)
+  const [cacheHits, setCacheHits] = useState(0)
   const bottomRef = useRef(null)
 
-  const totalSaved = history.reduce((acc, r) => acc + (r.cache_hit ? r.savedAmount : 0), 0)
-  const cacheHits = history.filter(r => r.cache_hit).length
-
   useEffect(() => {
-    apiFetch("/keys/list", {}, token)
-      .then(k => {
-        setKeys(k)
-        if (k.length > 0) setSelectedKey(k[0].full_key)
-        else setNoKey(true)
-      })
-      .catch(() => setNoKey(true))
+    apiFetch("/keys/list", {}, token).then(k => {
+      setKeys(k)
+      if (k.length > 0) setSelectedKey(k[0].full_key)
+    }).catch(console.error)
 
     apiFetch("/auth/gemini-key", {}, token)
-      .then(d => { if (!d.has_key) setNoGeminiKey(true) })
-      .catch(() => setNoGeminiKey(true))
+      .then(d => setHasGeminiKey(d.has_key))
+      .catch(console.error)
+
+    apiFetch("/metrics/summary", {}, token).then(s => {
+      setCacheHits(s.cache_hit_rate)
+    }).catch(console.error)
   }, [token])
 
   useEffect(() => {
@@ -51,16 +49,16 @@ export default function Playground() {
     try {
       const res = await fetch(`${BASE}/v1/chat`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": selectedKey
-        },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: userPrompt }],
-          model
-        })
+        headers: { "Content-Type": "application/json", "x-api-key": selectedKey },
+        body: JSON.stringify({ messages: [{ role: "user", content: userPrompt }], model })
       })
       const data = await res.json()
+
+      const saved = data.cache_hit
+        ? (history.findLast(r => !r.cache_hit && !r.error)?.cost_usd || 0.00002)
+        : 0
+
+      setTotalSaved(prev => prev + saved)
 
       setHistory(prev => [...prev, {
         id: Date.now(),
@@ -70,186 +68,149 @@ export default function Playground() {
         latency_ms: data.latency_ms ?? 0,
         cost_usd: data.cost_usd ?? 0,
         cache_hit: data.cache_hit,
-        savedAmount: data.cache_hit
-          ? (prev.findLast(r => !r.cache_hit && !r.error)?.cost_usd || 0.00002)
-          : 0,
+        savedAmount: saved,
         error: !data.content
       }])
-    } catch (e) {
+    } catch {
       setHistory(prev => [...prev, {
-        id: Date.now(),
-        prompt: userPrompt,
-        response: "Request failed — check your settings",
-        provider: "error",
-        latency_ms: 0,
-        cost_usd: 0,
-        cache_hit: false,
-        savedAmount: 0,
-        error: true
+        id: Date.now(), prompt: userPrompt,
+        response: "Request failed. Check your settings.",
+        provider: "error", latency_ms: 0, cost_usd: 0,
+        cache_hit: false, savedAmount: 0, error: true
       }])
     } finally {
       setLoading(false)
     }
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      sendPrompt()
-    }
-  }
+  const sessionHits = history.filter(r => r.cache_hit).length
+  const inputStyle = { padding: "8px 12px", background: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none" }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f7f8fc", fontFamily: "system-ui, sans-serif" }}>
-
-      <div style={{ background: "#1a1a2e", padding: "0 2rem" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => navigate("/dashboard")}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${PURPLE}, ${TEAL})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>I</span>
+    <Layout>
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+        <div style={{ padding: "24px 32px", borderBottom: "1px solid #1a1a1a", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <h1 style={{ color: "#fff", fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: "-0.02em" }}>Playground</h1>
+              <p style={{ color: "#555", fontSize: 13, margin: "2px 0 0" }}>Test your prompts and watch the cache in action</p>
             </div>
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>InferMesh</span>
-            <span style={{ background: "rgba(108,99,255,0.25)", color: "#a89fff", fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 500 }}>Playground</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button onClick={() => navigate("/dashboard")} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Dashboard</button>
-            <button onClick={() => navigate("/settings")} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Settings</button>
-            <button onClick={logout} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Logout</button>
+            {history.length > 0 && (
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
+                  <p style={{ color: "#555", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Session hits</p>
+                  <p style={{ color: ACCENT, fontSize: 18, fontWeight: 600, margin: 0 }}>{sessionHits}/{history.length}</p>
+                </div>
+                <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
+                  <p style={{ color: "#555", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Saved</p>
+                  <p style={{ color: GREEN, fontSize: 18, fontWeight: 600, margin: 0 }}>${totalSaved.toFixed(6)}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
-
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Playground</h1>
-            <p style={{ color: "#aaa", fontSize: 13, marginTop: 4 }}>Send prompts and watch the semantic cache in action</p>
-          </div>
-          {history.length > 0 && (
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ background: "#fff", borderRadius: 12, padding: "10px 16px", border: "1px solid #f0f0f0", textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em" }}>Cache hits</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: PURPLE }}>{cacheHits}/{history.length}</div>
-              </div>
-              <div style={{ background: "#fff", borderRadius: 12, padding: "10px 16px", border: "1px solid #f0f0f0", textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em" }}>Saved</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: TEAL }}>${totalSaved.toFixed(6)}</div>
-              </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+          {!hasGeminiKey && (
+            <div style={{ background: "#1a1500", border: "1px solid #f59e0b33", borderRadius: 10, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <p style={{ color: "#f59e0b", fontSize: 13, margin: 0 }}>Add your Gemini API key in Settings to use the playground</p>
             </div>
           )}
+
+          {history.length === 0 && hasGeminiKey && (
+            <div style={{ textAlign: "center", padding: "80px 40px" }}>
+              <div style={{ width: 48, height: 48, background: "#141414", border: "1px solid #222", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <p style={{ color: "#ccc", fontSize: 15, fontWeight: 500, margin: "0 0 8px" }}>Send your first prompt</p>
+              <p style={{ color: "#444", fontSize: 13, margin: 0, maxWidth: 360, marginLeft: "auto", marginRight: "auto" }}>
+                Try asking the same question twice. The second response will be instant and free thanks to semantic caching.
+              </p>
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 800, margin: "0 auto" }}>
+            {history.map(item => (
+              <div key={item.id} style={{ background: "#111", border: `1px solid ${item.cache_hit ? "#22c55e22" : item.error ? "#ef444422" : "#1f1f1f"}`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "12px 18px", background: item.cache_hit ? "#0a1f0a" : item.error ? "#1a0a0a" : "#161616", borderBottom: `1px solid ${item.cache_hit ? "#22c55e22" : "#1a1a1a"}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: "#ccc", margin: 0 }}>
+                    {item.prompt.length > 80 ? item.prompt.slice(0, 80) + "..." : item.prompt}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {item.cache_hit
+                      ? <span style={{ background: "#0d2010", border: "1px solid #22c55e33", color: GREEN, fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>Cache hit</span>
+                      : <span style={{ background: "#1a1a2e", border: "1px solid #5865f233", color: ACCENT, fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>{item.provider}</span>
+                    }
+                    <span style={{ color: "#444", fontSize: 12 }}>{item.latency_ms}ms</span>
+                    <span style={{ color: item.cache_hit ? GREEN : "#555", fontSize: 12, fontWeight: item.cache_hit ? 500 : 400 }}>
+                      {item.cache_hit ? "FREE" : `$${item.cost_usd.toFixed(6)}`}
+                    </span>
+                    {item.cache_hit && item.savedAmount > 0 && (
+                      <span style={{ color: GREEN, fontSize: 12, fontWeight: 500 }}>saved ${item.savedAmount.toFixed(6)}</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ padding: "16px 18px", maxHeight: 400, overflowY: "auto" }}>
+                  <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.75 }}>
+                    <ReactMarkdown
+                      components={{
+                        h1: ({node, ...p}) => <h1 style={{ fontSize: 16, fontWeight: 600, color: "#fff", margin: "14px 0 6px" }} {...p} />,
+                        h2: ({node, ...p}) => <h2 style={{ fontSize: 15, fontWeight: 600, color: "#fff", margin: "12px 0 6px" }} {...p} />,
+                        h3: ({node, ...p}) => <h3 style={{ fontSize: 14, fontWeight: 600, color: "#ddd", margin: "10px 0 4px" }} {...p} />,
+                        h4: ({node, ...p}) => <h4 style={{ fontSize: 13, fontWeight: 600, color: "#ccc", margin: "8px 0 4px" }} {...p} />,
+                        p: ({node, ...p}) => <p style={{ margin: "6px 0" }} {...p} />,
+                        ul: ({node, ...p}) => <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...p} />,
+                        ol: ({node, ...p}) => <ol style={{ paddingLeft: 20, margin: "6px 0" }} {...p} />,
+                        li: ({node, ...p}) => <li style={{ margin: "3px 0" }} {...p} />,
+                        code: ({node, inline, ...p}) => inline
+                          ? <code style={{ background: "#1a1a1a", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace", color: "#a78bfa" }} {...p} />
+                          : <pre style={{ background: "#0d0d0d", border: "1px solid #222", padding: "14px", borderRadius: 8, overflow: "auto", fontSize: 12, fontFamily: "monospace", margin: "10px 0" }}><code style={{ color: "#a78bfa" }} {...p} /></pre>,
+                        strong: ({node, ...p}) => <strong style={{ color: "#fff", fontWeight: 600 }} {...p} />,
+                        hr: () => <hr style={{ border: "none", borderTop: "1px solid #1f1f1f", margin: "14px 0" }} />,
+                      }}
+                    >{item.response}</ReactMarkdown>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div ref={bottomRef} />
         </div>
 
-        {(noKey || noGeminiKey) && (
-          <div style={{ background: "#fff8e6", border: "1px solid #ffd080", borderRadius: 12, padding: "14px 18px", marginBottom: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <p style={{ fontSize: 13, color: "#8a6000", margin: 0 }}>
-              {noGeminiKey ? "Add your Gemini API key in Settings to use the playground" : "Create an InferMesh API key in Settings first"}
-            </p>
-            <button onClick={() => navigate("/settings")} style={{ padding: "8px 16px", borderRadius: 8, background: PURPLE, color: "#fff", border: "none", fontSize: 13, cursor: "pointer" }}>Go to Settings</button>
-          </div>
-        )}
-
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #f0f0f0", marginBottom: "1rem", overflow: "hidden" }}>
-          <div style={{ padding: "1rem 1.5rem", borderBottom: "1px solid #f5f5f5", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>API Key</span>
-              <select value={selectedKey || ""} onChange={e => setSelectedKey(e.target.value)} style={{ fontSize: 13, color: "#333", border: "1px solid #e0e0e0", borderRadius: 8, padding: "6px 10px", outline: "none", background: "#fff" }}>
-                {keys.length === 0 && <option value="">No keys — create one in Settings</option>}
-                {keys.map(k => <option key={k.id} value={k.full_key}>{k.name} ({k.key})</option>)}
+        <div style={{ padding: "16px 32px", borderTop: "1px solid #1a1a1a", background: "#0f0f0f", flexShrink: 0 }}>
+          <div style={{ maxWidth: 800, margin: "0 auto" }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+              <select value={selectedKey || ""} onChange={e => setSelectedKey(e.target.value)} style={{ ...inputStyle, flex: "none" }}>
+                {keys.length === 0 && <option value="">No keys</option>}
+                {keys.map(k => <option key={k.id} value={k.full_key}>{k.name}</option>)}
               </select>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>Model</span>
-              <select value={model} onChange={e => setModel(e.target.value)} style={{ fontSize: 13, color: "#333", border: "1px solid #e0e0e0", borderRadius: 8, padding: "6px 10px", outline: "none", background: "#fff" }}>
+              <select value={model} onChange={e => setModel(e.target.value)} style={{ ...inputStyle, flex: "none" }}>
                 <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
                 <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
                 <option value="gemini-2.0-flash">gemini-2.0-flash</option>
               </select>
             </div>
-          </div>
-
-          <div style={{ padding: "1rem 1.5rem" }}>
-            <textarea
-              value={prompt}
-              onChange={e => setPrompt(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a prompt and press Enter... Try sending the same question twice to see the cache hit!"
-              rows={3}
-              style={{ width: "100%", border: "none", outline: "none", fontSize: 14, color: "#1a1a2e", resize: "none", fontFamily: "inherit", lineHeight: 1.6, boxSizing: "border-box" }}
-            />
-          </div>
-
-          <div style={{ padding: "0.75rem 1.5rem", borderTop: "1px solid #f5f5f5", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 12, color: "#ccc" }}>Enter to send · Shift+Enter for new line</span>
-            <button
-              onClick={sendPrompt}
-              disabled={loading || !prompt.trim() || !selectedKey}
-              style={{ padding: "8px 20px", borderRadius: 8, background: loading || !prompt.trim() || !selectedKey ? "#e0e0e0" : PURPLE, color: loading || !prompt.trim() || !selectedKey ? "#aaa" : "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: loading || !prompt.trim() || !selectedKey ? "not-allowed" : "pointer" }}
-            >
-              {loading ? "Sending..." : "Send"}
-            </button>
-          </div>
-        </div>
-
-        {history.length === 0 && !noKey && !noGeminiKey && (
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #f0f0f0", padding: "3rem", textAlign: "center" }}>
-            <p style={{ fontSize: 32, marginBottom: 8 }}>💬</p>
-            <p style={{ color: "#333", fontWeight: 600, fontSize: 15 }}>Send your first prompt</p>
-            <p style={{ color: "#aaa", fontSize: 13, marginTop: 4, maxWidth: 380, margin: "8px auto 0" }}>
-              Try asking the same question twice — the second response will be instant and free
-            </p>
-          </div>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: history.length > 0 ? "1rem" : 0 }}>
-          {history.map((item) => (
-            <div key={item.id} style={{ background: "#fff", borderRadius: 16, border: `1px solid ${item.cache_hit ? "#d0f0e0" : item.error ? "#ffd0d0" : "#f0f0f0"}`, overflow: "hidden" }}>
-              <div style={{ padding: "12px 16px", background: item.cache_hit ? "#f0fff8" : item.error ? "#fff5f5" : "#fafafa", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: 0 }}>
-                  "{item.prompt.length > 80 ? item.prompt.slice(0, 80) + "..." : item.prompt}"
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {item.cache_hit
-                    ? <span style={{ background: TEAL, color: "#fff", fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>⚡ Cache hit</span>
-                    : <span style={{ background: PURPLE, color: "#fff", fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>🤖 {item.provider}</span>
-                  }
-                  <span style={{ fontSize: 12, color: "#aaa" }}>{item.latency_ms}ms</span>
-                  <span style={{ fontSize: 12, color: item.cache_hit ? TEAL : "#888", fontWeight: item.cache_hit ? 600 : 400 }}>
-                    {item.cache_hit ? "FREE" : `$${item.cost_usd.toFixed(6)}`}
-                  </span>
-                  {item.cache_hit && item.savedAmount > 0 && (
-                    <span style={{ fontSize: 12, color: TEAL, fontWeight: 600 }}>💰 saved ${item.savedAmount.toFixed(6)}</span>
-                  )}
-                </div>
-              </div>
-              <div style={{ padding: "14px 16px", maxHeight: 400, overflowY: "auto" }}>
-                <div style={{ fontSize: 13, color: "#444", lineHeight: 1.7 }}>
-                  <ReactMarkdown
-                    components={{
-                      h1: ({node, ...props}) => <h1 style={{ fontSize: 16, fontWeight: 700, margin: "12px 0 6px", color: "#1a1a2e" }} {...props} />,
-                      h2: ({node, ...props}) => <h2 style={{ fontSize: 15, fontWeight: 700, margin: "10px 0 6px", color: "#1a1a2e" }} {...props} />,
-                      h3: ({node, ...props}) => <h3 style={{ fontSize: 14, fontWeight: 600, margin: "8px 0 4px", color: "#1a1a2e" }} {...props} />,
-                      h4: ({node, ...props}) => <h4 style={{ fontSize: 13, fontWeight: 600, margin: "6px 0 4px", color: "#333" }} {...props} />,
-                      p: ({node, ...props}) => <p style={{ margin: "6px 0", lineHeight: 1.7 }} {...props} />,
-                      ul: ({node, ...props}) => <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...props} />,
-                      ol: ({node, ...props}) => <ol style={{ paddingLeft: 20, margin: "6px 0" }} {...props} />,
-                      li: ({node, ...props}) => <li style={{ margin: "3px 0" }} {...props} />,
-                      code: ({node, inline, ...props}) => inline
-                        ? <code style={{ background: "#f0f0f0", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace" }} {...props} />
-                        : <pre style={{ background: "#f8f8f8", padding: "12px", borderRadius: 8, overflow: "auto", fontSize: 12, fontFamily: "monospace", margin: "8px 0" }}><code {...props} /></pre>,
-                      strong: ({node, ...props}) => <strong style={{ fontWeight: 600, color: "#1a1a2e" }} {...props} />,
-                      hr: () => <hr style={{ border: "none", borderTop: "1px solid #f0f0f0", margin: "12px 0" }} />,
-                    }}
-                  >
-                    {item.response}
-                  </ReactMarkdown>
-                </div>
-              </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <textarea
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt() } }}
+                placeholder="Type a prompt and press Enter..."
+                rows={2}
+                style={{ flex: 1, padding: "11px 14px", background: "#141414", border: "1px solid #2a2a2a", borderRadius: 10, color: "#fff", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", lineHeight: 1.6 }}
+              />
+              <button
+                onClick={sendPrompt}
+                disabled={loading || !prompt.trim() || !selectedKey}
+                style={{ padding: "0 20px", background: loading || !prompt.trim() || !selectedKey ? "#1a1a1a" : ACCENT, color: loading || !prompt.trim() || !selectedKey ? "#444" : "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: loading || !prompt.trim() || !selectedKey ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+              >
+                {loading ? "..." : "Send"}
+              </button>
             </div>
-          ))}
+            <p style={{ color: "#333", fontSize: 11, margin: "8px 0 0" }}>Enter to send, Shift+Enter for new line</p>
+          </div>
         </div>
-        <div ref={bottomRef} />
       </div>
-    </div>
+    </Layout>
   )
 }

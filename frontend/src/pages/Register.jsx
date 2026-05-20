@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { apiFetch } from "../api"
 
-const PURPLE = "#6C63FF"
+const ACCENT = "#5865f2"
 
 export default function Register() {
   const [name, setName] = useState("")
@@ -19,10 +19,7 @@ export default function Register() {
     setLoading(true)
     setError("")
     try {
-      const data = await apiFetch("/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ email, password, name })
-      })
+      const data = await apiFetch("/auth/register", { method: "POST", body: JSON.stringify({ email, password, name }) })
       login(data.token, { email: data.email, name: data.name })
       navigate("/dashboard")
     } catch (err) {
@@ -32,55 +29,49 @@ export default function Register() {
     }
   }
 
+  const inputStyle = { width: "100%", padding: "11px 14px", background: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, color: "#fff", fontSize: 14, outline: "none", boxSizing: "border-box" }
+  const labelStyle = { display: "block", fontSize: 12, fontWeight: 500, color: "#888", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }
+
   return (
-    <div style={{ minHeight: "100vh", background: "#f7f8fc", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ background: "#fff", borderRadius: 16, padding: "2.5rem", width: "100%", maxWidth: 420, border: "1px solid #f0f0f0", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "2rem" }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${PURPLE}, #00C9A7)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>I</span>
+    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <div style={{ width: "100%", maxWidth: 440, padding: "0 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 40, justifyContent: "center" }}>
+          <div style={{ width: 32, height: 32, background: ACCENT, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>I</span>
           </div>
-          <span style={{ fontWeight: 700, fontSize: 18, color: "#1a1a2e" }}>InferMesh</span>
+          <span style={{ color: "#fff", fontWeight: 600, fontSize: 16 }}>InferMesh</span>
         </div>
 
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1a1a2e", marginBottom: 4 }}>Create account</h2>
-        <p style={{ fontSize: 13, color: "#aaa", marginBottom: "1.5rem" }}>Start monitoring your LLM usage</p>
+        <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 16, padding: "36px 36px" }}>
+          <h1 style={{ color: "#fff", fontSize: 22, fontWeight: 600, margin: "0 0 6px", letterSpacing: "-0.02em" }}>Create your account</h1>
+          <p style={{ color: "#555", fontSize: 13, margin: "0 0 28px" }}>Start monitoring your LLM usage today</p>
 
-        {error && <div style={{ background: "#fff0f0", border: "1px solid #ffd0d0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#c00", marginBottom: "1rem" }}>{error}</div>}
+          {error && (
+            <div style={{ background: "#1a0a0a", border: "1px solid #3a1a1a", borderRadius: 8, padding: "12px 16px", fontSize: 13, color: "#f87171", marginBottom: 20 }}>{error}</div>
+          )}
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#555", display: "block", marginBottom: 6 }}>Name</label>
-            <input
-              type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder="Your name" required
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 14, outline: "none" }}
-            />
-          </div>
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#555", display: "block", marginBottom: 6 }}>Email</label>
-            <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com" required
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 14, outline: "none" }}
-            />
-          </div>
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#555", display: "block", marginBottom: 6 }}>Password</label>
-            <input
-              type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••" required minLength={8}
-              style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 14, outline: "none" }}
-            />
-          </div>
-          <button type="submit" disabled={loading} style={{ width: "100%", padding: "12px", borderRadius: 8, background: PURPLE, color: "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
-            {loading ? "Creating account..." : "Create account"}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Name</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" required style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" required style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={labelStyle}>Password</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 8 characters" required minLength={8} style={inputStyle} />
+            </div>
+            <button type="submit" disabled={loading} style={{ width: "100%", padding: "12px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
+              {loading ? "Creating account..." : "Create account"}
+            </button>
+          </form>
 
-        <p style={{ textAlign: "center", fontSize: 13, color: "#aaa", marginTop: "1.5rem" }}>
-          Already have an account?{" "}
-          <Link to="/login" style={{ color: PURPLE, fontWeight: 500, textDecoration: "none" }}>Sign in</Link>
-        </p>
+          <p style={{ color: "#555", fontSize: 13, marginTop: 20, textAlign: "center" }}>
+            Already have an account? <Link to="/login" style={{ color: ACCENT, textDecoration: "none", fontWeight: 500 }}>Sign in</Link>
+          </p>
+        </div>
       </div>
     </div>
   )
