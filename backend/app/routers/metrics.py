@@ -83,3 +83,64 @@ async def providers(
         .order_by(func.count(InferenceLog.id).desc()), user)
     )
     return [{"provider": r.provider, "requests": r.requests, "cost": round(float(r.cost), 6)} for r in result]
+
+@router.get("/savings")
+async def savings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        filter_by_user(
+            select(
+                func.count(InferenceLog.id).filter(InferenceLog.cache_hit == True).label("cache_hits"),
+                func.coalesce(func.sum(InferenceLog.cost_usd), 0).label("total_paid"),
+                func.count(InferenceLog.id).label("total_requests")
+            ), user
+        )
+    )
+    row = result.one()
+    avg_cost_result = await db.execute(
+        filter_by_user(
+            select(func.avg(InferenceLog.cost_usd))
+            .where(InferenceLog.cache_hit == False)
+            .where(InferenceLog.cost_usd > 0), user
+        )
+    )
+    avg_cost = float(avg_cost_result.scalar() or 0.00002)
+    estimated_saved = int(row.cache_hits) * avg_cost
+
+    return {
+        "total_requests": row.total_requests,
+        "cache_hits": int(row.cache_hits),
+        "total_paid_usd": round(float(row.total_paid), 6),
+        "estimated_saved_usd": round(estimated_saved, 6),
+        "total_without_cache_usd": round(float(row.total_paid) + estimated_saved, 6)
+    }
+
+@router.get("/history")
+async def history(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    result = await db.execute(
+        filter_by_user(
+            select(InferenceLog)
+            .order_by(InferenceLog.created_at.desc())
+            .limit(50), user
+        )
+    )
+    logs = result.scalars().all()
+    return [
+        {
+            "id": str(l.id),
+            "prompt_text": l.prompt_text,
+            "response_text": l.response_text,
+            "provider": l.provider,
+            "model": l.model,
+            "latency_ms": l.latency_ms,
+            "cost_usd": float(l.cost_usd or 0),
+            "cache_hit": l.cache_hit,
+            "created_at": l.created_at.isoformat()
+        }
+        for l in logs if l.prompt_text
+    ]

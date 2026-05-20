@@ -40,6 +40,8 @@ class InferenceLog(Base):
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=True)
     cache_hit: Mapped[bool] = mapped_column(Boolean, default=False)
     status_code: Mapped[int] = mapped_column(Integer, default=200)
+    prompt_text: Mapped[str] = mapped_column(Text, nullable=True)
+    response_text: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 class PromptCache(Base):

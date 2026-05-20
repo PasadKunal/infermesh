@@ -73,6 +73,8 @@ async def chat(
     log = InferenceLog(
         user_id=user.id,
         api_key_id=api_key_record.id if api_key_record else None,
+        prompt_text=user_message,
+        response_text=response.content,
         provider=response.provider,
         model=response.model,
         prompt_tokens=response.prompt_tokens,

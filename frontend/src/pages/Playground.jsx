@@ -22,6 +22,24 @@ export default function Playground() {
   const bottomRef = useRef(null)
 
   useEffect(() => {
+    apiFetch("/metrics/savings", {}, token).then(s => {
+      setTotalSaved(s.estimated_saved_usd)
+    }).catch(console.error)
+
+    apiFetch("/metrics/history", {}, token).then(logs => {
+      setHistory(logs.map(l => ({
+        id: l.id,
+        prompt: l.prompt_text,
+        response: l.response_text,
+        provider: l.provider,
+        latency_ms: l.latency_ms,
+        cost_usd: l.cost_usd,
+        cache_hit: l.cache_hit,
+        savedAmount: 0,
+        error: false
+      })).reverse())
+    }).catch(console.error)
+
     apiFetch("/keys/list", {}, token).then(k => {
       setKeys(k)
       if (k.length > 0) setSelectedKey(k[0].full_key)
