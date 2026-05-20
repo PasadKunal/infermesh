@@ -1,6 +1,6 @@
 # InferMesh
 
-A self-hosted LLM inference gateway with semantic caching, cost tracking, rate limiting, and a real-time metrics dashboard. Each user brings their own Gemini API key and gets an isolated dashboard showing their own usage.
+A self-hosted LLM inference gateway with semantic caching, per-user isolation, rate limiting, and a real-time metrics dashboard. Each user brings their own Gemini API key, stored encrypted, and gets a fully isolated dashboard showing only their usage.
 
 ## Live Demo
 
@@ -11,17 +11,18 @@ A self-hosted LLM inference gateway with semantic caching, cost tracking, rate l
 ## What it does
 
 - **Semantic cache** - similar prompts return cached responses instantly at $0 cost using pgvector cosine similarity with adaptive thresholds based on prompt type
-- **Per-user isolation** - each user brings their own Gemini API key, stored encrypted. They pay their own Gemini bill and see only their own metrics
-- **Request logging** - every request logged with provider, model, tokens, cost, latency, and cache hit status
+- **Per-user isolation** - each user brings their own Gemini API key stored encrypted. They pay their own Gemini bill and see only their own metrics
+- **Encrypted key storage** - user Gemini keys are encrypted with Fernet symmetric encryption before storage. Even with full database access the keys are unreadable
+- **Request logging** - every request logged with provider, model, tokens, cost, latency, prompt text, and cache hit status
 - **Rate limiting** - Redis sliding window, 60 requests per minute per API key
 - **Metrics dashboard** - live React dashboard showing cost, latency percentiles, cache hit rate, and provider breakdown
-- **Playground** - built-in chat interface to test prompts and watch the cache in action
+- **Playground** - built-in chat interface with persistent all-time savings tracking and markdown rendering
 - **Multi-provider ready** - abstract provider interface, adding OpenAI or Anthropic is one new file
 
 ## Stack
 
 - **Backend** - FastAPI, PostgreSQL + pgvector, Redis, Alembic, SQLAlchemy
-- **Frontend** - React, Vite, Recharts, React Router
+- **Frontend** - React, Vite, Recharts, React Router, react-markdown
 - **Infra** - Docker, Railway, Vercel, GitHub Actions
 
 ## How it works
@@ -29,7 +30,7 @@ A self-hosted LLM inference gateway with semantic caching, cost tracking, rate l
 ```txt
 User registers at infermesh.vercel.app
         |
-        +-- Adds their Gemini API key in Settings (stored encrypted)
+        +-- Adds their Gemini API key in Settings (encrypted before storage)
         +-- Creates an InferMesh API key (im-...)
         |
         v
@@ -38,15 +39,18 @@ App sends request with x-api-key: im-...
         v
 InferMesh Gateway
         |
+        +-- Rate limit check (Redis sliding window)
+        +-- Look up user from InferMesh key
         +-- Check semantic cache (pgvector cosine similarity)
         |       Cache hit  -> return instantly, $0 cost
-        |       Cache miss -> call user's Gemini key
+        |       Cache miss -> decrypt user Gemini key, call Gemini
         |
-        +-- Log request to user's account
+        +-- Log request (prompt, response, cost, latency) to user account
         +-- Return response
         |
         v
 User dashboard shows their usage, cost, cache hit rate
+User playground shows all-time savings across sessions
 ```
 
 ## Getting started (new user)
@@ -67,7 +71,7 @@ curl -X POST https://infermesh-production.up.railway.app/v1/chat \
 ```
 
 5. Visit your dashboard to see metrics
-6. Or use the Playground at https://infermesh.vercel.app/playground to test interactively
+6. Use the Playground at https://infermesh.vercel.app/playground to test interactively
 
 ## Running locally
 
@@ -84,7 +88,7 @@ python3.11 -m venv imvenv && source imvenv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Add your GEMINI_API_KEY and ENCRYPTION_KEY to .env
+# Fill in GEMINI_API_KEY, ENCRYPTION_KEY, SECRET_KEY
 # Generate ENCRYPTION_KEY: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
 alembic upgrade head
@@ -113,7 +117,7 @@ npm run dev
 
 ## Security
 
-User Gemini API keys are encrypted using Fernet symmetric encryption before being stored in the database. The encryption key lives only in environment variables and is never stored in the database or committed to the repository. Even with full database access, the stored keys are unreadable without the encryption key.
+User Gemini API keys are encrypted using Fernet symmetric encryption before being stored in the database. The encryption key lives only in environment variables and is never stored in the database or committed to the repository. Even with full database access, the stored keys are unreadable without the encryption key. Passwords are hashed with bcrypt. Authentication uses signed JWT tokens with 7-day expiry.
 
 ## How semantic caching works
 
@@ -123,7 +127,44 @@ Every prompt is converted to a 3072-dimensional vector using Gemini embeddings. 
 - Medium questions (under 12 words): threshold 0.82
 - Long descriptive prompts: threshold 0.72
 
-The cache is shared across all users, so the more users on the platform, the higher the cache hit rate for everyone.
+The cache is shared across all users. The more users on the platform, the higher the cache hit rate for everyone. Each user's costs and metrics remain isolated to their own account.
+
+## API reference
+
+### Auth
+
+```bash
+POST /auth/register   - Create account
+POST /auth/login      - Get JWT token
+GET  /auth/me         - Get current user
+PUT  /auth/gemini-key - Save encrypted Gemini key
+GET  /auth/gemini-key - Check if Gemini key is set
+DELETE /auth/gemini-key - Remove Gemini key
+```
+
+### Keys
+
+```bash
+POST /keys/create     - Create InferMesh API key
+GET  /keys/list       - List your API keys
+```
+
+### Inference
+
+```bash
+POST /v1/chat         - Send inference request (requires x-api-key header)
+```
+
+### Metrics
+
+```bash
+GET /metrics/summary      - Total requests, cost, latency, cache hit rate
+GET /metrics/cost-by-day  - Daily cost breakdown
+GET /metrics/latency      - p50, p95, p99 latency percentiles
+GET /metrics/providers    - Requests and cost by provider
+GET /metrics/savings      - All-time estimated savings from cache
+GET /metrics/history      - Last 50 requests with prompts and responses
+```
 
 ## Running tests
 
@@ -135,4 +176,4 @@ pytest tests/ -v
 
 ## CI/CD
 
-GitHub Actions runs on every push. It spins up Postgres and Redis, enables the pgvector extension, runs Alembic migrations, and runs the full pytest suite. Railway auto-deploys the backend and Vercel auto-deploys the frontend on every push to main.
+GitHub Actions runs on every push. It spins up Postgres and Redis service containers, enables the pgvector extension, runs Alembic migrations, and runs the full pytest suite. Railway auto-deploys the backend and Vercel auto-deploys the frontend on every push to main.
