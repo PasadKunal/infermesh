@@ -5,6 +5,7 @@ import Register from "./pages/Register"
 import Dashboard from "./pages/Dashboard"
 import Settings from "./pages/Settings"
 import Playground from "./pages/Playground"
+import History from "./pages/History"
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/playground" element={<ProtectedRoute><Playground /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
       </Routes>
     </AuthProvider>
   )
