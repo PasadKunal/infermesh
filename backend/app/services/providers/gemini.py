@@ -22,7 +22,6 @@ class GeminiProvider(BaseProvider):
 
     async def complete(self, request: InferenceRequest) -> InferenceResponse:
         start = time.time()
-
         contents = [
             types.Content(
                 role="user" if m.role == "user" else "model",
@@ -30,19 +29,14 @@ class GeminiProvider(BaseProvider):
             )
             for m in request.messages
         ]
-
         response = self.client.models.generate_content(
             model=request.model,
             contents=contents,
-            config=types.GenerateContentConfig(
-                max_output_tokens=request.max_tokens
-            )
+            config=types.GenerateContentConfig(max_output_tokens=request.max_tokens)
         )
-
         latency_ms = int((time.time() - start) * 1000)
         prompt_tokens = response.usage_metadata.prompt_token_count or 0
         completion_tokens = response.usage_metadata.candidates_token_count or 0
-
         return InferenceResponse(
             provider=self.name,
             model=request.model,
@@ -53,8 +47,22 @@ class GeminiProvider(BaseProvider):
             latency_ms=latency_ms
         )
 
+    async def stream(self, request: InferenceRequest):
+        contents = [
+            types.Content(
+                role="user" if m.role == "user" else "model",
+                parts=[types.Part(text=m.content)]
+            )
+            for m in request.messages
+        ]
+        for chunk in self.client.models.generate_content_stream(
+            model=request.model,
+            contents=contents,
+            config=types.GenerateContentConfig(max_output_tokens=request.max_tokens)
+        ):
+            if chunk.text:
+                yield chunk.text
+
     def estimate_cost(self, prompt_tokens: int, completion_tokens: int, model: str = "gemini-2.0-flash") -> float:
         pricing = PRICING.get(model, PRICING["gemini-2.0-flash"])
-        input_cost = (prompt_tokens / 1_000_000) * pricing["input"]
-        output_cost = (completion_tokens / 1_000_000) * pricing["output"]
-        return round(input_cost + output_cost, 6)
+        return round((prompt_tokens / 1_000_000) * pricing["input"] + (completion_tokens / 1_000_000) * pricing["output"], 6)

@@ -1,3 +1,4 @@
+import time
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -117,3 +118,98 @@ async def chat(
     db.add(log)
     await db.commit()
     return response
+
+from fastapi.responses import StreamingResponse as FastAPIStreamingResponse
+import json
+
+@router.post("/chat/stream")
+async def chat_stream(
+    request: InferenceRequest,
+    db: AsyncSession = Depends(get_db),
+    x_api_key: Optional[str] = Header(None),
+    x_provider: Optional[str] = Header(None)
+):
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="API key required")
+
+    is_allowed, _ = await check_rate_limit(x_api_key)
+    if not is_allowed:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+    user = await get_user_from_api_key(x_api_key, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    provider_name, provider = get_provider(user, request.model, x_provider)
+    if not provider:
+        raise HTTPException(status_code=400, detail="No provider API keys configured")
+
+    result = await db.execute(select(APIKey).where(APIKey.key == x_api_key))
+    api_key_record = result.scalar_one_or_none()
+
+    user_message = next(
+        (m.content for m in reversed(request.messages) if m.role == "user"), None
+    )
+
+    cached_response = await check_cache(user_message, db)
+    if cached_response:
+        log = InferenceLog(
+            user_id=user.id,
+            api_key_id=api_key_record.id if api_key_record else None,
+            provider="cache",
+            model=request.model,
+            prompt_text=user_message,
+            response_text=cached_response,
+            cache_hit=True,
+            cost_usd=0.0,
+            latency_ms=0,
+            status_code=200
+        )
+        db.add(log)
+        await db.commit()
+
+        async def cache_stream():
+            words = cached_response.split(" ")
+            for i, word in enumerate(words):
+                chunk = word + (" " if i < len(words) - 1 else "")
+                yield f"data: {json.dumps({'text': chunk, 'cache_hit': True})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'cache_hit': True, 'cost_usd': 0.0})}\n\n"
+
+        return FastAPIStreamingResponse(cache_stream(), media_type="text/event-stream")
+
+    start = time.time()
+    full_response = []
+
+    async def generate():
+        try:
+            async for chunk in provider.stream(request):
+                full_response.append(chunk)
+                yield f"data: {json.dumps({'text': chunk, 'cache_hit': False})}\n\n"
+
+            latency_ms = int((time.time() - start) * 1000)
+            response_text = "".join(full_response)
+
+            await store_cache(user_message, response_text, request.model, db)
+
+            log = InferenceLog(
+                user_id=user.id,
+                api_key_id=api_key_record.id if api_key_record else None,
+                provider=provider_name,
+                model=request.model,
+                prompt_text=user_message,
+                response_text=response_text,
+                prompt_tokens=0,
+                completion_tokens=0,
+                cost_usd=0.0,
+                latency_ms=latency_ms,
+                cache_hit=False,
+                status_code=200
+            )
+            db.add(log)
+            await db.commit()
+
+            yield f"data: {json.dumps({'done': True, 'cache_hit': False, 'latency_ms': latency_ms})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return FastAPIStreamingResponse(generate(), media_type="text/event-stream")

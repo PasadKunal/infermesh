@@ -13,7 +13,9 @@ export default function Playground() {
   const [prompt, setPrompt] = useState("")
   const [model, setModel] = useState("gemini-3.1-flash-lite-preview")
   const [history, setHistory] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [streaming, setStreaming] = useState(false)
+  const [streamingText, setStreamingText] = useState("")
+  const [streamingPrompt, setStreamingPrompt] = useState("")
   const [keys, setKeys] = useState([])
   const [selectedKey, setSelectedKey] = useState(null)
   const [hasGeminiKey, setHasGeminiKey] = useState(true)
@@ -39,40 +41,75 @@ export default function Playground() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [history])
+  }, [history, streamingText])
 
   const sendPrompt = async () => {
-    if (!prompt.trim() || loading || !selectedKey) return
+    if (!prompt.trim() || streaming || !selectedKey) return
     const userPrompt = prompt.trim()
     setPrompt("")
-    setLoading(true)
+    setStreaming(true)
+    setStreamingText("")
+    setStreamingPrompt(userPrompt)
 
     try {
-      const res = await fetch(`${BASE}/v1/chat`, {
+      const res = await fetch(`${BASE}/v1/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": selectedKey },
         body: JSON.stringify({ messages: [{ role: "user", content: userPrompt }], model })
       })
-      const data = await res.json()
 
-      const saved = data.cache_hit
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let fullText = ""
+      let isCacheHit = false
+      let latency = 0
+      let cost = 0
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split("\n")
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          try {
+            const data = JSON.parse(line.slice(6))
+            if (data.text) {
+              fullText += data.text
+              setStreamingText(fullText)
+              isCacheHit = data.cache_hit
+            }
+            if (data.done) {
+              latency = data.latency_ms || 0
+              cost = data.cost_usd || 0
+            }
+            if (data.error) {
+              fullText = `Error: ${data.error}`
+              setStreamingText(fullText)
+            }
+          } catch {}
+        }
+      }
+
+      const saved = isCacheHit
         ? (history.findLast(r => !r.cache_hit && !r.error)?.cost_usd || 0.00002)
         : 0
 
       setTotalSaved(prev => prev + saved)
-
       setHistory(prev => [...prev, {
         id: Date.now(),
         prompt: userPrompt,
-        response: data.content || data.detail || "Error",
-        provider: data.provider,
-        latency_ms: data.latency_ms ?? 0,
-        cost_usd: data.cost_usd ?? 0,
-        cache_hit: data.cache_hit,
+        response: fullText,
+        provider: isCacheHit ? "cache" : "gemini",
+        latency_ms: latency,
+        cost_usd: cost,
+        cache_hit: isCacheHit,
         savedAmount: saved,
-        error: !data.content
+        error: false
       }])
-    } catch {
+    } catch (e) {
       setHistory(prev => [...prev, {
         id: Date.now(), prompt: userPrompt,
         response: "Request failed. Check your settings.",
@@ -80,11 +117,29 @@ export default function Playground() {
         cache_hit: false, savedAmount: 0, error: true
       }])
     } finally {
-      setLoading(false)
+      setStreaming(false)
+      setStreamingText("")
+      setStreamingPrompt("")
     }
   }
 
   const inputStyle = { padding: "8px 12px", background: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none" }
+
+  const mdComponents = {
+    h1: ({node, ...p}) => <h1 style={{ fontSize: 16, fontWeight: 600, color: "#fff", margin: "14px 0 6px" }} {...p} />,
+    h2: ({node, ...p}) => <h2 style={{ fontSize: 15, fontWeight: 600, color: "#fff", margin: "12px 0 6px" }} {...p} />,
+    h3: ({node, ...p}) => <h3 style={{ fontSize: 14, fontWeight: 600, color: "#ddd", margin: "10px 0 4px" }} {...p} />,
+    h4: ({node, ...p}) => <h4 style={{ fontSize: 13, fontWeight: 600, color: "#ccc", margin: "8px 0 4px" }} {...p} />,
+    p: ({node, ...p}) => <p style={{ margin: "6px 0" }} {...p} />,
+    ul: ({node, ...p}) => <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...p} />,
+    ol: ({node, ...p}) => <ol style={{ paddingLeft: 20, margin: "6px 0" }} {...p} />,
+    li: ({node, ...p}) => <li style={{ margin: "3px 0" }} {...p} />,
+    code: ({node, inline, ...p}) => inline
+      ? <code style={{ background: "#1a1a1a", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace", color: "#a78bfa" }} {...p} />
+      : <pre style={{ background: "#0d0d0d", border: "1px solid #222", padding: "14px", borderRadius: 8, overflow: "auto", fontSize: 12, fontFamily: "monospace", margin: "10px 0" }}><code style={{ color: "#a78bfa" }} {...p} /></pre>,
+    strong: ({node, ...p}) => <strong style={{ color: "#fff", fontWeight: 600 }} {...p} />,
+    hr: () => <hr style={{ border: "none", borderTop: "1px solid #1f1f1f", margin: "14px 0" }} />,
+  }
 
   return (
     <Layout>
@@ -111,12 +166,12 @@ export default function Playground() {
 
         <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
           {!hasGeminiKey && (
-            <div style={{ background: "#1a1500", border: "1px solid #f59e0b33", borderRadius: 10, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ background: "#1a1500", border: "1px solid #f59e0b33", borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
               <p style={{ color: "#f59e0b", fontSize: 13, margin: 0 }}>Add your Gemini API key in Settings to use the playground</p>
             </div>
           )}
 
-          {history.length === 0 && hasGeminiKey && (
+          {history.length === 0 && !streaming && hasGeminiKey && (
             <div style={{ textAlign: "center", padding: "80px 40px" }}>
               <div style={{ width: 48, height: 48, background: "#141414", border: "1px solid #222", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -151,27 +206,34 @@ export default function Playground() {
                 </div>
                 <div style={{ padding: "16px 18px", maxHeight: 400, overflowY: "auto" }}>
                   <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.75 }}>
-                    <ReactMarkdown
-                      components={{
-                        h1: ({node, ...p}) => <h1 style={{ fontSize: 16, fontWeight: 600, color: "#fff", margin: "14px 0 6px" }} {...p} />,
-                        h2: ({node, ...p}) => <h2 style={{ fontSize: 15, fontWeight: 600, color: "#fff", margin: "12px 0 6px" }} {...p} />,
-                        h3: ({node, ...p}) => <h3 style={{ fontSize: 14, fontWeight: 600, color: "#ddd", margin: "10px 0 4px" }} {...p} />,
-                        h4: ({node, ...p}) => <h4 style={{ fontSize: 13, fontWeight: 600, color: "#ccc", margin: "8px 0 4px" }} {...p} />,
-                        p: ({node, ...p}) => <p style={{ margin: "6px 0" }} {...p} />,
-                        ul: ({node, ...p}) => <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...p} />,
-                        ol: ({node, ...p}) => <ol style={{ paddingLeft: 20, margin: "6px 0" }} {...p} />,
-                        li: ({node, ...p}) => <li style={{ margin: "3px 0" }} {...p} />,
-                        code: ({node, inline, ...p}) => inline
-                          ? <code style={{ background: "#1a1a1a", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace", color: "#a78bfa" }} {...p} />
-                          : <pre style={{ background: "#0d0d0d", border: "1px solid #222", padding: "14px", borderRadius: 8, overflow: "auto", fontSize: 12, fontFamily: "monospace", margin: "10px 0" }}><code style={{ color: "#a78bfa" }} {...p} /></pre>,
-                        strong: ({node, ...p}) => <strong style={{ color: "#fff", fontWeight: 600 }} {...p} />,
-                        hr: () => <hr style={{ border: "none", borderTop: "1px solid #1f1f1f", margin: "14px 0" }} />,
-                      }}
-                    >{item.response}</ReactMarkdown>
+                    <ReactMarkdown components={mdComponents}>{item.response}</ReactMarkdown>
                   </div>
                 </div>
               </div>
             ))}
+
+            {streaming && (
+              <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "12px 18px", background: "#161616", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: "#ccc", margin: 0 }}>
+                    {streamingPrompt.length > 80 ? streamingPrompt.slice(0, 80) + "..." : streamingPrompt}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 3 }}>
+                      {[0,1,2].map(i => (
+                        <div key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: ACCENT, animation: `bounce .8s ${i * 0.15}s infinite` }} />
+                      ))}
+                    </div>
+                    <span style={{ color: "#444", fontSize: 12 }}>streaming...</span>
+                  </div>
+                </div>
+                <div style={{ padding: "16px 18px", maxHeight: 400, overflowY: "auto" }}>
+                  <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.75 }}>
+                    <ReactMarkdown components={mdComponents}>{streamingText || " "}</ReactMarkdown>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div ref={bottomRef} />
         </div>
@@ -200,16 +262,22 @@ export default function Playground() {
               />
               <button
                 onClick={sendPrompt}
-                disabled={loading || !prompt.trim() || !selectedKey}
-                style={{ padding: "0 20px", background: loading || !prompt.trim() || !selectedKey ? "#1a1a1a" : ACCENT, color: loading || !prompt.trim() || !selectedKey ? "#444" : "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: loading || !prompt.trim() || !selectedKey ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+                disabled={streaming || !prompt.trim() || !selectedKey}
+                style={{ padding: "0 20px", background: streaming || !prompt.trim() || !selectedKey ? "#1a1a1a" : ACCENT, color: streaming || !prompt.trim() || !selectedKey ? "#444" : "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: streaming || !prompt.trim() || !selectedKey ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
               >
-                {loading ? "..." : "Send"}
+                {streaming ? "..." : "Send"}
               </button>
             </div>
             <p style={{ color: "#333", fontSize: 11, margin: "8px 0 0" }}>Enter to send, Shift+Enter for new line</p>
           </div>
         </div>
       </div>
+      <style>{`
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); opacity: 0.4; }
+          50% { transform: translateY(-4px); opacity: 1; }
+        }
+      `}</style>
     </Layout>
   )
 }
