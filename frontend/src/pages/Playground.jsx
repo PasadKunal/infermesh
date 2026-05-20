@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { apiFetch } from "../api"
+import ReactMarkdown from "react-markdown"
+import ReactMarkdown from "react-markdown"
 
 const PURPLE = "#6C63FF"
 const TEAL = "#00C9A7"
@@ -210,7 +212,7 @@ export default function Playground() {
                 </div>
               </div>
               <div style={{ padding: "14px 16px" }}>
-                <p style={{ fontSize: 13, color: "#444", lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap" }}>{item.response}</p>
+                <div style={{ fontSize: 13, color: "#444", lineHeight: 1.7, maxHeight: 400, overflowY: "auto" }}><ReactMarkdown>{item.response}</ReactMarkdown></div>
               </div>
             </div>
           ))}
