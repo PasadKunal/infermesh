@@ -23,9 +23,9 @@ function StatCard({ label, value, sub, trend }) {
 const DarkTooltip = ({ active, payload, label, prefix = "", suffix = "" }) => {
   if (active && payload && payload.length) {
     return (
-      <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "10px 14px" }}>
-        {label && <p style={{ color: "#888", fontSize: 11, margin: "0 0 4px" }}>{label}</p>}
-        <p style={{ color: "#fff", fontSize: 13, fontWeight: 500, margin: 0 }}>{prefix}{payload[0].value}{suffix}</p>
+      <div style={{ background: "#0d0d0d", border: "1px solid #333", borderRadius: 10, padding: "10px 16px", boxShadow: "0 4px 20px rgba(0,0,0,0.5)" }}>
+        {label && <p style={{ color: "#666", fontSize: 11, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</p>}
+        <p style={{ color: "#fff", fontSize: 15, fontWeight: 600, margin: 0, letterSpacing: "-0.01em" }}>{prefix}{payload[0].value}{suffix}</p>
       </div>
     )
   }
@@ -133,11 +133,11 @@ export default function Dashboard() {
               <div style={{ background: "#161616", border: "1px solid #222", borderRadius: 12, padding: "20px 24px" }}>
                 <p style={{ color: "#888", fontSize: 12, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 20px" }}>Latency percentiles</p>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={latencyData} barSize={40}>
+                  <BarChart data={latencyData} barSize={40} style={{ cursor: "default" }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#555" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "#555" }} axisLine={false} tickLine={false} />
-                    <Tooltip content={<DarkTooltip suffix="ms" />} />
+                    <Tooltip content={<DarkTooltip suffix="ms" />} cursor={{ fill: "rgba(255,255,255,0.04)", radius: 6 }} />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                       {latencyData.map((_, i) => <Cell key={i} fill={[GREEN, AMBER, RED][i]} />)}
                     </Bar>
