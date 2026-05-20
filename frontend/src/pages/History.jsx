@@ -67,7 +67,7 @@ export default function History() {
         <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: 4, width: "fit-content" }}>
           {["all", "cache", "gemini", "openai", "anthropic"].map(f => (
             <button key={f} onClick={() => setFilter(f)} style={btnStyle(filter === f)}>
-              {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === "all" ? "All" : f === "openai" ? "OpenAI" : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
