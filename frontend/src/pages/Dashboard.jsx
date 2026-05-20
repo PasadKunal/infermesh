@@ -126,7 +126,7 @@ export default function Dashboard() {
               <span style={{ color: "#888", fontSize: 12 }}>Live · {lastUpdated}</span>
             </div>
             <span style={{ color: "#555", fontSize: 13 }}>{user?.name || user?.email}</span>
-            <button onClick={() => navigate("/settings")} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>API Keys</button>
+            <button onClick={() => navigate("/playground")} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Playground</button><button onClick={() => navigate("/settings")} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>API Keys</button>
             <button onClick={logout} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Logout</button>
           </div>
         </div>

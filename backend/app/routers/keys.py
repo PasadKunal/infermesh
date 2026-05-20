@@ -36,4 +36,13 @@ async def list_keys(
         .order_by(APIKey.created_at.desc())
     )
     keys = result.scalars().all()
-    return [{"id": str(k.id), "name": k.name, "key": k.key[:12] + "...", "created_at": k.created_at} for k in keys]
+    return [
+        {
+            "id": str(k.id),
+            "name": k.name,
+            "key": k.key[:12] + "...",
+            "full_key": k.key,
+            "created_at": k.created_at
+        }
+        for k in keys
+    ]
