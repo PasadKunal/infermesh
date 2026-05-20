@@ -18,27 +18,14 @@ export default function Playground() {
   const [selectedKey, setSelectedKey] = useState(null)
   const [hasGeminiKey, setHasGeminiKey] = useState(true)
   const [totalSaved, setTotalSaved] = useState(0)
-  const [cacheHits, setCacheHits] = useState(0)
   const bottomRef = useRef(null)
 
-  useEffect(() => {
-    apiFetch("/metrics/savings", {}, token).then(s => {
-      setTotalSaved(s.estimated_saved_usd)
-    }).catch(console.error)
+  const sessionHits = history.filter(r => r.cache_hit).length
 
-    apiFetch("/metrics/history", {}, token).then(logs => {
-      setHistory(logs.map(l => ({
-        id: l.id,
-        prompt: l.prompt_text,
-        response: l.response_text,
-        provider: l.provider,
-        latency_ms: l.latency_ms,
-        cost_usd: l.cost_usd,
-        cache_hit: l.cache_hit,
-        savedAmount: 0,
-        error: false
-      })).reverse())
-    }).catch(console.error)
+  useEffect(() => {
+    apiFetch("/metrics/savings", {}, token)
+      .then(s => setTotalSaved(s.estimated_saved_usd))
+      .catch(console.error)
 
     apiFetch("/keys/list", {}, token).then(k => {
       setKeys(k)
@@ -48,10 +35,6 @@ export default function Playground() {
     apiFetch("/auth/gemini-key", {}, token)
       .then(d => setHasGeminiKey(d.has_key))
       .catch(console.error)
-
-    apiFetch("/metrics/summary", {}, token).then(s => {
-      setCacheHits(s.cache_hit_rate)
-    }).catch(console.error)
   }, [token])
 
   useEffect(() => {
@@ -101,30 +84,28 @@ export default function Playground() {
     }
   }
 
-  const sessionHits = history.filter(r => r.cache_hit).length
   const inputStyle = { padding: "8px 12px", background: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none" }
 
   return (
     <Layout>
       <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+
         <div style={{ padding: "24px 32px", borderBottom: "1px solid #1a1a1a", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <h1 style={{ color: "#fff", fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: "-0.02em" }}>Playground</h1>
               <p style={{ color: "#555", fontSize: 13, margin: "2px 0 0" }}>Test your prompts and watch the cache in action</p>
             </div>
-            {history.length > 0 && (
-              <div style={{ display: "flex", gap: 12 }}>
-                <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
-                  <p style={{ color: "#555", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Session hits</p>
-                  <p style={{ color: ACCENT, fontSize: 18, fontWeight: 600, margin: 0 }}>{sessionHits}/{history.length}</p>
-                </div>
-                <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
-                  <p style={{ color: "#555", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Saved</p>
-                  <p style={{ color: GREEN, fontSize: 18, fontWeight: 600, margin: 0 }}>${totalSaved.toFixed(6)}</p>
-                </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
+                <p style={{ color: "#555", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Session hits</p>
+                <p style={{ color: ACCENT, fontSize: 18, fontWeight: 600, margin: 0 }}>{sessionHits}/{history.length || 0}</p>
               </div>
-            )}
+              <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
+                <p style={{ color: "#555", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>All-time saved</p>
+                <p style={{ color: GREEN, fontSize: 18, fontWeight: 600, margin: 0 }}>${totalSaved.toFixed(6)}</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -141,7 +122,7 @@ export default function Playground() {
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
               <p style={{ color: "#ccc", fontSize: 15, fontWeight: 500, margin: "0 0 8px" }}>Send your first prompt</p>
-              <p style={{ color: "#444", fontSize: 13, margin: 0, maxWidth: 360, marginLeft: "auto", marginRight: "auto" }}>
+              <p style={{ color: "#444", fontSize: 13, margin: "0 auto", maxWidth: 360 }}>
                 Try asking the same question twice. The second response will be instant and free thanks to semantic caching.
               </p>
             </div>
@@ -198,11 +179,11 @@ export default function Playground() {
         <div style={{ padding: "16px 32px", borderTop: "1px solid #1a1a1a", background: "#0f0f0f", flexShrink: 0 }}>
           <div style={{ maxWidth: 800, margin: "0 auto" }}>
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-              <select value={selectedKey || ""} onChange={e => setSelectedKey(e.target.value)} style={{ ...inputStyle, flex: "none" }}>
+              <select value={selectedKey || ""} onChange={e => setSelectedKey(e.target.value)} style={inputStyle}>
                 {keys.length === 0 && <option value="">No keys</option>}
                 {keys.map(k => <option key={k.id} value={k.full_key}>{k.name}</option>)}
               </select>
-              <select value={model} onChange={e => setModel(e.target.value)} style={{ ...inputStyle, flex: "none" }}>
+              <select value={model} onChange={e => setModel(e.target.value)} style={inputStyle}>
                 <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
                 <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
                 <option value="gemini-2.0-flash">gemini-2.0-flash</option>
