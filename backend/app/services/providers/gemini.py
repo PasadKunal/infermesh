@@ -4,17 +4,17 @@ from google.genai import types
 from app.services.providers.base import BaseProvider
 from app.models.request import InferenceRequest
 from app.models.response import InferenceResponse
-from app.core.config import settings
 
 PRICING = {
     "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     "gemini-2.0-flash-lite": {"input": 0.075, "output": 0.30},
+    "gemini-3.1-flash-lite-preview": {"input": 0.075, "output": 0.30},
 }
 
 class GeminiProvider(BaseProvider):
 
-    def __init__(self):
-        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    def __init__(self, api_key: str):
+        self.client = genai.Client(api_key=api_key)
 
     @property
     def name(self) -> str:
@@ -49,12 +49,12 @@ class GeminiProvider(BaseProvider):
             content=response.text,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
-            cost_usd=self.estimate_cost(prompt_tokens, completion_tokens),
+            cost_usd=self.estimate_cost(prompt_tokens, completion_tokens, request.model),
             latency_ms=latency_ms
         )
 
-    def estimate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
-        pricing = PRICING.get("gemini-2.0-flash")
+    def estimate_cost(self, prompt_tokens: int, completion_tokens: int, model: str = "gemini-2.0-flash") -> float:
+        pricing = PRICING.get(model, PRICING["gemini-2.0-flash"])
         input_cost = (prompt_tokens / 1_000_000) * pricing["input"]
         output_cost = (completion_tokens / 1_000_000) * pricing["output"]
         return round(input_cost + output_cost, 6)

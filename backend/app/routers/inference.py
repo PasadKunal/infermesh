@@ -8,12 +8,11 @@ from app.services.providers.gemini import GeminiProvider
 from app.services.cache import check_cache, store_cache
 from app.services.rate_limiter import check_rate_limit
 from app.services.auth import get_user_from_api_key
+from app.services.encryption import decrypt
 from app.db.postgres import get_db
 from app.db.models import InferenceLog, APIKey
-from app.core.config import settings
 
 router = APIRouter(prefix="/v1", tags=["inference"])
-gemini_provider = GeminiProvider()
 
 @router.post("/chat", response_model=InferenceResponse)
 async def chat(
@@ -21,17 +20,25 @@ async def chat(
     db: AsyncSession = Depends(get_db),
     x_api_key: Optional[str] = Header(None)
 ):
-    key_to_limit = x_api_key or settings.DEFAULT_API_KEY
-    is_allowed, remaining = await check_rate_limit(key_to_limit)
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="API key required")
+
+    is_allowed, remaining = await check_rate_limit(x_api_key)
     if not is_allowed:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded.")
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     user = await get_user_from_api_key(x_api_key, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API key")
 
-    api_key_record = None
-    if x_api_key:
-        result = await db.execute(select(APIKey).where(APIKey.key == x_api_key))
-        api_key_record = result.scalar_one_or_none()
+    if not user.gemini_api_key:
+        raise HTTPException(status_code=400, detail="No Gemini API key configured")
+
+    gemini_key = decrypt(user.gemini_api_key)
+    provider = GeminiProvider(api_key=gemini_key)
+
+    result = await db.execute(select(APIKey).where(APIKey.key == x_api_key))
+    api_key_record = result.scalar_one_or_none()
 
     user_message = next(
         (m.content for m in reversed(request.messages) if m.role == "user"), None
@@ -40,7 +47,7 @@ async def chat(
     cached_response = await check_cache(user_message, db)
     if cached_response:
         log = InferenceLog(
-            user_id=user.id if user else None,
+            user_id=user.id,
             api_key_id=api_key_record.id if api_key_record else None,
             provider="cache",
             model=request.model,
@@ -57,14 +64,14 @@ async def chat(
         )
 
     try:
-        response = await gemini_provider.complete(request)
+        response = await provider.complete(request)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Provider error: {str(e)}")
 
     await store_cache(user_message, response.content, request.model, db)
 
     log = InferenceLog(
-        user_id=user.id if user else None,
+        user_id=user.id,
         api_key_id=api_key_record.id if api_key_record else None,
         provider=response.provider,
         model=response.model,
