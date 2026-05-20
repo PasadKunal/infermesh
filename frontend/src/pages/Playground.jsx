@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { apiFetch } from "../api"
 import ReactMarkdown from "react-markdown"
-import ReactMarkdown from "react-markdown"
 
 const PURPLE = "#6C63FF"
 const TEAL = "#00C9A7"
@@ -16,8 +15,10 @@ export default function Playground() {
   const [model, setModel] = useState("gemini-3.1-flash-lite-preview")
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
-  const [apiKey, setApiKey] = useState(null)
+  const [keys, setKeys] = useState([])
+  const [selectedKey, setSelectedKey] = useState(null)
   const [noKey, setNoKey] = useState(false)
+  const [noGeminiKey, setNoGeminiKey] = useState(false)
   const bottomRef = useRef(null)
 
   const totalSaved = history.reduce((acc, r) => acc + (r.cache_hit ? r.savedAmount : 0), 0)
@@ -25,11 +26,16 @@ export default function Playground() {
 
   useEffect(() => {
     apiFetch("/keys/list", {}, token)
-      .then(keys => {
-        if (keys.length > 0) setApiKey(keys[0].full_key || null)
+      .then(k => {
+        setKeys(k)
+        if (k.length > 0) setSelectedKey(k[0].full_key)
         else setNoKey(true)
       })
       .catch(() => setNoKey(true))
+
+    apiFetch("/auth/gemini-key", {}, token)
+      .then(d => { if (!d.has_key) setNoGeminiKey(true) })
+      .catch(() => setNoGeminiKey(true))
   }, [token])
 
   useEffect(() => {
@@ -37,21 +43,17 @@ export default function Playground() {
   }, [history])
 
   const sendPrompt = async () => {
-    if (!prompt.trim() || loading) return
-    if (!apiKey) { setNoKey(true); return }
-
+    if (!prompt.trim() || loading || !selectedKey) return
     const userPrompt = prompt.trim()
     setPrompt("")
     setLoading(true)
-
-    const start = Date.now()
 
     try {
       const res = await fetch(`${BASE}/v1/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": apiKey
+          "x-api-key": selectedKey
         },
         body: JSON.stringify({
           messages: [{ role: "user", content: userPrompt }],
@@ -59,28 +61,30 @@ export default function Playground() {
         })
       })
       const data = await res.json()
-      const elapsed = Date.now() - start
 
       setHistory(prev => [...prev, {
         id: Date.now(),
         prompt: userPrompt,
-        response: data.content || data.detail,
+        response: data.content || data.detail || "Error",
         provider: data.provider,
-        latency_ms: data.latency_ms ?? elapsed,
+        latency_ms: data.latency_ms ?? 0,
         cost_usd: data.cost_usd ?? 0,
         cache_hit: data.cache_hit,
-        savedAmount: data.cache_hit ? (prev.findLast(r => !r.cache_hit)?.cost_usd || 0.00002) : 0,
+        savedAmount: data.cache_hit
+          ? (prev.findLast(r => !r.cache_hit && !r.error)?.cost_usd || 0.00002)
+          : 0,
         error: !data.content
       }])
     } catch (e) {
       setHistory(prev => [...prev, {
         id: Date.now(),
         prompt: userPrompt,
-        response: "Request failed — check your API key and Gemini key in settings",
+        response: "Request failed — check your settings",
         provider: "error",
         latency_ms: 0,
         cost_usd: 0,
         cache_hit: false,
+        savedAmount: 0,
         error: true
       }])
     } finally {
@@ -96,9 +100,9 @@ export default function Playground() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f7f8fc", fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#f7f8fc", fontFamily: "system-ui, sans-serif" }}>
 
-      <div style={{ background: "#1a1a2e", padding: "0 2rem", flexShrink: 0 }}>
+      <div style={{ background: "#1a1a2e", padding: "0 2rem" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => navigate("/dashboard")}>
             <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${PURPLE}, ${TEAL})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -115,14 +119,13 @@ export default function Playground() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem", flex: 1, width: "100%", boxSizing: "border-box" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
 
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Playground</h1>
             <p style={{ color: "#aaa", fontSize: 13, marginTop: 4 }}>Send prompts and watch the semantic cache in action</p>
           </div>
-
           {history.length > 0 && (
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ background: "#fff", borderRadius: 12, padding: "10px 16px", border: "1px solid #f0f0f0", textAlign: "center" }}>
@@ -137,25 +140,32 @@ export default function Playground() {
           )}
         </div>
 
-        {noKey && (
+        {(noKey || noGeminiKey) && (
           <div style={{ background: "#fff8e6", border: "1px solid #ffd080", borderRadius: 12, padding: "14px 18px", marginBottom: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <p style={{ fontSize: 13, color: "#8a6000", margin: 0 }}>You need a Gemini key and an InferMesh API key to use the playground</p>
+            <p style={{ fontSize: 13, color: "#8a6000", margin: 0 }}>
+              {noGeminiKey ? "Add your Gemini API key in Settings to use the playground" : "Create an InferMesh API key in Settings first"}
+            </p>
             <button onClick={() => navigate("/settings")} style={{ padding: "8px 16px", borderRadius: 8, background: PURPLE, color: "#fff", border: "none", fontSize: 13, cursor: "pointer" }}>Go to Settings</button>
           </div>
         )}
 
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #f0f0f0", marginBottom: "1rem", overflow: "hidden" }}>
-          <div style={{ padding: "1rem 1.5rem", borderBottom: "1px solid #f5f5f5", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>Model</span>
-            <select
-              value={model}
-              onChange={e => setModel(e.target.value)}
-              style={{ fontSize: 13, color: "#333", border: "1px solid #e0e0e0", borderRadius: 8, padding: "6px 10px", outline: "none", background: "#fff" }}
-            >
-              <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
-              <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
-              <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-            </select>
+          <div style={{ padding: "1rem 1.5rem", borderBottom: "1px solid #f5f5f5", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>API Key</span>
+              <select value={selectedKey || ""} onChange={e => setSelectedKey(e.target.value)} style={{ fontSize: 13, color: "#333", border: "1px solid #e0e0e0", borderRadius: 8, padding: "6px 10px", outline: "none", background: "#fff" }}>
+                {keys.length === 0 && <option value="">No keys — create one in Settings</option>}
+                {keys.map(k => <option key={k.id} value={k.full_key}>{k.name} ({k.key})</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>Model</span>
+              <select value={model} onChange={e => setModel(e.target.value)} style={{ fontSize: 13, color: "#333", border: "1px solid #e0e0e0", borderRadius: 8, padding: "6px 10px", outline: "none", background: "#fff" }}>
+                <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
+                <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+              </select>
+            </div>
           </div>
 
           <div style={{ padding: "1rem 1.5rem" }}>
@@ -170,40 +180,41 @@ export default function Playground() {
           </div>
 
           <div style={{ padding: "0.75rem 1.5rem", borderTop: "1px solid #f5f5f5", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 12, color: "#ccc" }}>Press Enter to send · Shift+Enter for new line</span>
+            <span style={{ fontSize: 12, color: "#ccc" }}>Enter to send · Shift+Enter for new line</span>
             <button
               onClick={sendPrompt}
-              disabled={loading || !prompt.trim()}
-              style={{ padding: "8px 20px", borderRadius: 8, background: loading || !prompt.trim() ? "#e0e0e0" : PURPLE, color: loading || !prompt.trim() ? "#aaa" : "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: loading || !prompt.trim() ? "not-allowed" : "pointer", transition: "all .15s" }}
+              disabled={loading || !prompt.trim() || !selectedKey}
+              style={{ padding: "8px 20px", borderRadius: 8, background: loading || !prompt.trim() || !selectedKey ? "#e0e0e0" : PURPLE, color: loading || !prompt.trim() || !selectedKey ? "#aaa" : "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: loading || !prompt.trim() || !selectedKey ? "not-allowed" : "pointer" }}
             >
               {loading ? "Sending..." : "Send"}
             </button>
           </div>
         </div>
 
-        {history.length === 0 && !noKey && (
+        {history.length === 0 && !noKey && !noGeminiKey && (
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #f0f0f0", padding: "3rem", textAlign: "center" }}>
             <p style={{ fontSize: 32, marginBottom: 8 }}>💬</p>
             <p style={{ color: "#333", fontWeight: 600, fontSize: 15 }}>Send your first prompt</p>
             <p style={{ color: "#aaa", fontSize: 13, marginTop: 4, maxWidth: 380, margin: "8px auto 0" }}>
-              Try asking the same question twice — the second response will be instant and free thanks to semantic caching
+              Try asking the same question twice — the second response will be instant and free
             </p>
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: history.length > 0 ? "1rem" : 0 }}>
           {history.map((item) => (
             <div key={item.id} style={{ background: "#fff", borderRadius: 16, border: `1px solid ${item.cache_hit ? "#d0f0e0" : item.error ? "#ffd0d0" : "#f0f0f0"}`, overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", background: item.cache_hit ? "#f0fff8" : item.error ? "#fff5f5" : "#fafafa", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: 0 }}>"{item.prompt.length > 80 ? item.prompt.slice(0, 80) + "..." : item.prompt}"</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: 0 }}>
+                  "{item.prompt.length > 80 ? item.prompt.slice(0, 80) + "..." : item.prompt}"
+                </p>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {item.cache_hit ? (
-                    <span style={{ background: "#00C9A7", color: "#fff", fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>⚡ Cache hit</span>
-                  ) : (
-                    <span style={{ background: PURPLE, color: "#fff", fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>🤖 {item.provider}</span>
-                  )}
+                  {item.cache_hit
+                    ? <span style={{ background: TEAL, color: "#fff", fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>⚡ Cache hit</span>
+                    : <span style={{ background: PURPLE, color: "#fff", fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>🤖 {item.provider}</span>
+                  }
                   <span style={{ fontSize: 12, color: "#aaa" }}>{item.latency_ms}ms</span>
-                  <span style={{ fontSize: 12, color: item.cache_hit ? TEAL : "#aaa", fontWeight: item.cache_hit ? 600 : 400 }}>
+                  <span style={{ fontSize: 12, color: item.cache_hit ? TEAL : "#888", fontWeight: item.cache_hit ? 600 : 400 }}>
                     {item.cache_hit ? "FREE" : `$${item.cost_usd.toFixed(6)}`}
                   </span>
                   {item.cache_hit && item.savedAmount > 0 && (
@@ -211,15 +222,291 @@ export default function Playground() {
                   )}
                 </div>
               </div>
-              <div style={{ padding: "14px 16px" }}>
-                <div style={{ fontSize: 13, color: "#444", lineHeight: 1.7, maxHeight: 400, overflowY: "auto" }}><ReactMarkdown>{item.response}</ReactMarkdown></div>
+              <div style={{ padding: "14px 16px", maxHeight: 400, overflowY: "auto" }}>
+                <div style={{ fontSize: 13, color: "#444", lineHeight: 1.7 }}>
+                  <ReactMarkdown
+                    components={{
+                      h1: ({node, ...props}) => <h1 style={{ fontSize: 16, fontWeight: 700, margin: "12px 0 6px", color: "#1a1a2e" }} {...props} />,
+                      h2: ({node, ...props}) => <h2 style={{ fontSize: 15, fontWeight: 700, margin: "10px 0 6px", color: "#1a1a2e" }} {...props} />,
+                      h3: ({node, ...props}) => <h3 style={{ fontSize: 14, fontWeight: 600, margin: "8px 0 4px", color: "#1a1a2e" }} {...props} />,
+                      h4: ({node, ...props}) => <h4 style={{ fontSize: 13, fontWeight: 600, margin: "6px 0 4px", color: "#333" }} {...props} />,
+                      p: ({node, ...props}) => <p style={{ margin: "6px 0", lineHeight: 1.7 }} {...props} />,
+                      ul: ({node, ...props}) => <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...props} />,
+                      ol: ({node, ...props}) => <ol style={{ paddingLeft: 20, margin: "6px 0" }} {...props} />,
+                      li: ({node, ...props}) => <li style={{ margin: "3px 0" }} {...props} />,
+                      code: ({node, inline, ...props}) => inline
+                        ? <code style={{ background: "#f0f0f0", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace" }} {...props} />
+                        : <pre style={{ background: "#f8f8f8", padding: "12px", borderRadius: 8, overflow: "auto", fontSize: 12, fontFamily: "monospace", margin: "8px 0" }}><code {...props} /></pre>,
+                      strong: ({node, ...props}) => <strong style={{ fontWeight: 600, color: "#1a1a2e" }} {...props} />,
+                      hr: () => <hr style={{ border: "none", borderTop: "1px solid #f0f0f0", margin: "12px 0" }} />,
+                    }}
+                  >
+                    {item.response}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
           ))}
         </div>
         <div ref={bottomRef} />
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+}
+EOFcd frontend
+cat > src/pages/Playground.jsx << 'EOF'
+import { useState, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
+import { useAuth } from "../context/AuthContext"
+import { apiFetch } from "../api"
+import ReactMarkdown from "react-markdown"
+
+const PURPLE = "#6C63FF"
+const TEAL = "#00C9A7"
+const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
+
+export default function Playground() {
+  const { user, token, logout } = useAuth()
+  const navigate = useNavigate()
+  const [prompt, setPrompt] = useState("")
+  const [model, setModel] = useState("gemini-3.1-flash-lite-preview")
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [keys, setKeys] = useState([])
+  const [selectedKey, setSelectedKey] = useState(null)
+  const [noKey, setNoKey] = useState(false)
+  const [noGeminiKey, setNoGeminiKey] = useState(false)
+  const bottomRef = useRef(null)
+
+  const totalSaved = history.reduce((acc, r) => acc + (r.cache_hit ? r.savedAmount : 0), 0)
+  const cacheHits = history.filter(r => r.cache_hit).length
+
+  useEffect(() => {
+    apiFetch("/keys/list", {}, token)
+      .then(k => {
+        setKeys(k)
+        if (k.length > 0) setSelectedKey(k[0].full_key)
+        else setNoKey(true)
+      })
+      .catch(() => setNoKey(true))
+
+    apiFetch("/auth/gemini-key", {}, token)
+      .then(d => { if (!d.has_key) setNoGeminiKey(true) })
+      .catch(() => setNoGeminiKey(true))
+  }, [token])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [history])
+
+  const sendPrompt = async () => {
+    if (!prompt.trim() || loading || !selectedKey) return
+    const userPrompt = prompt.trim()
+    setPrompt("")
+    setLoading(true)
+
+    try {
+      const res = await fetch(`${BASE}/v1/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": selectedKey
+        },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: userPrompt }],
+          model
+        })
+      })
+      const data = await res.json()
+
+      setHistory(prev => [...prev, {
+        id: Date.now(),
+        prompt: userPrompt,
+        response: data.content || data.detail || "Error",
+        provider: data.provider,
+        latency_ms: data.latency_ms ?? 0,
+        cost_usd: data.cost_usd ?? 0,
+        cache_hit: data.cache_hit,
+        savedAmount: data.cache_hit
+          ? (prev.findLast(r => !r.cache_hit && !r.error)?.cost_usd || 0.00002)
+          : 0,
+        error: !data.content
+      }])
+    } catch (e) {
+      setHistory(prev => [...prev, {
+        id: Date.now(),
+        prompt: userPrompt,
+        response: "Request failed — check your settings",
+        provider: "error",
+        latency_ms: 0,
+        cost_usd: 0,
+        cache_hit: false,
+        savedAmount: 0,
+        error: true
+      }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendPrompt()
+    }
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f7f8fc", fontFamily: "system-ui, sans-serif" }}>
+
+      <div style={{ background: "#1a1a2e", padding: "0 2rem" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => navigate("/dashboard")}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${PURPLE}, ${TEAL})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>I</span>
+            </div>
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>InferMesh</span>
+            <span style={{ background: "rgba(108,99,255,0.25)", color: "#a89fff", fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 500 }}>Playground</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button onClick={() => navigate("/dashboard")} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Dashboard</button>
+            <button onClick={() => navigate("/settings")} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Settings</button>
+            <button onClick={logout} style={{ background: "transparent", border: "1px solid #333", color: "#888", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>Logout</button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem", boxSizing: "border-box" }}>
+
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Playground</h1>
+            <p style={{ color: "#aaa", fontSize: 13, marginTop: 4 }}>Send prompts and watch the semantic cache in action</p>
+          </div>
+          {history.length > 0 && (
+            <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ background: "#fff", borderRadius: 12, padding: "10px 16px", border: "1px solid #f0f0f0", textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em" }}>Cache hits</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: PURPLE }}>{cacheHits}/{history.length}</div>
+              </div>
+              <div style={{ background: "#fff", borderRadius: 12, padding: "10px 16px", border: "1px solid #f0f0f0", textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em" }}>Saved</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: TEAL }}>${totalSaved.toFixed(6)}</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {(noKey || noGeminiKey) && (
+          <div style={{ background: "#fff8e6", border: "1px solid #ffd080", borderRadius: 12, padding: "14px 18px", marginBottom: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <p style={{ fontSize: 13, color: "#8a6000", margin: 0 }}>
+              {noGeminiKey ? "Add your Gemini API key in Settings to use the playground" : "Create an InferMesh API key in Settings first"}
+            </p>
+            <button onClick={() => navigate("/settings")} style={{ padding: "8px 16px", borderRadius: 8, background: PURPLE, color: "#fff", border: "none", fontSize: 13, cursor: "pointer" }}>Go to Settings</button>
+          </div>
+        )}
+
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #f0f0f0", marginBottom: "1rem", overflow: "hidden" }}>
+          <div style={{ padding: "1rem 1.5rem", borderBottom: "1px solid #f5f5f5", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>API Key</span>
+              <select value={selectedKey || ""} onChange={e => setSelectedKey(e.target.value)} style={{ fontSize: 13, color: "#333", border: "1px solid #e0e0e0", borderRadius: 8, padding: "6px 10px", outline: "none", background: "#fff" }}>
+                {keys.length === 0 && <option value="">No keys — create one in Settings</option>}
+                {keys.map(k => <option key={k.id} value={k.full_key}>{k.name} ({k.key})</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "#555" }}>Model</span>
+              <select value={model} onChange={e => setModel(e.target.value)} style={{ fontSize: 13, color: "#333", border: "1px solid #e0e0e0", borderRadius: 8, padding: "6px 10px", outline: "none", background: "#fff" }}>
+                <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
+                <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ padding: "1rem 1.5rem" }}>
+            <textarea
+              value={prompt}
+              onChange={e => setPrompt(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a prompt and press Enter... Try sending the same question twice to see the cache hit!"
+              rows={3}
+              style={{ width: "100%", border: "none", outline: "none", fontSize: 14, color: "#1a1a2e", resize: "none", fontFamily: "inherit", lineHeight: 1.6, boxSizing: "border-box" }}
+            />
+          </div>
+
+          <div style={{ padding: "0.75rem 1.5rem", borderTop: "1px solid #f5f5f5", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, color: "#ccc" }}>Enter to send · Shift+Enter for new line</span>
+            <button
+              onClick={sendPrompt}
+              disabled={loading || !prompt.trim() || !selectedKey}
+              style={{ padding: "8px 20px", borderRadius: 8, background: loading || !prompt.trim() || !selectedKey ? "#e0e0e0" : PURPLE, color: loading || !prompt.trim() || !selectedKey ? "#aaa" : "#fff", border: "none", fontSize: 14, fontWeight: 600, cursor: loading || !prompt.trim() || !selectedKey ? "not-allowed" : "pointer" }}
+            >
+              {loading ? "Sending..." : "Send"}
+            </button>
+          </div>
+        </div>
+
+        {history.length === 0 && !noKey && !noGeminiKey && (
+          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #f0f0f0", padding: "3rem", textAlign: "center" }}>
+            <p style={{ fontSize: 32, marginBottom: 8 }}>💬</p>
+            <p style={{ color: "#333", fontWeight: 600, fontSize: 15 }}>Send your first prompt</p>
+            <p style={{ color: "#aaa", fontSize: 13, marginTop: 4, maxWidth: 380, margin: "8px auto 0" }}>
+              Try asking the same question twice — the second response will be instant and free
+            </p>
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: history.length > 0 ? "1rem" : 0 }}>
+          {history.map((item) => (
+            <div key={item.id} style={{ background: "#fff", borderRadius: 16, border: `1px solid ${item.cache_hit ? "#d0f0e0" : item.error ? "#ffd0d0" : "#f0f0f0"}`, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", background: item.cache_hit ? "#f0fff8" : item.error ? "#fff5f5" : "#fafafa", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#1a1a2e", margin: 0 }}>
+                  "{item.prompt.length > 80 ? item.prompt.slice(0, 80) + "..." : item.prompt}"
+                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {item.cache_hit
+                    ? <span style={{ background: TEAL, color: "#fff", fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>⚡ Cache hit</span>
+                    : <span style={{ background: PURPLE, color: "#fff", fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>🤖 {item.provider}</span>
+                  }
+                  <span style={{ fontSize: 12, color: "#aaa" }}>{item.latency_ms}ms</span>
+                  <span style={{ fontSize: 12, color: item.cache_hit ? TEAL : "#888", fontWeight: item.cache_hit ? 600 : 400 }}>
+                    {item.cache_hit ? "FREE" : `$${item.cost_usd.toFixed(6)}`}
+                  </span>
+                  {item.cache_hit && item.savedAmount > 0 && (
+                    <span style={{ fontSize: 12, color: TEAL, fontWeight: 600 }}>💰 saved ${item.savedAmount.toFixed(6)}</span>
+                  )}
+                </div>
+              </div>
+              <div style={{ padding: "14px 16px", maxHeight: 400, overflowY: "auto" }}>
+                <div style={{ fontSize: 13, color: "#444", lineHeight: 1.7 }}>
+                  <ReactMarkdown
+                    components={{
+                      h1: ({node, ...props}) => <h1 style={{ fontSize: 16, fontWeight: 700, margin: "12px 0 6px", color: "#1a1a2e" }} {...props} />,
+                      h2: ({node, ...props}) => <h2 style={{ fontSize: 15, fontWeight: 700, margin: "10px 0 6px", color: "#1a1a2e" }} {...props} />,
+                      h3: ({node, ...props}) => <h3 style={{ fontSize: 14, fontWeight: 600, margin: "8px 0 4px", color: "#1a1a2e" }} {...props} />,
+                      h4: ({node, ...props}) => <h4 style={{ fontSize: 13, fontWeight: 600, margin: "6px 0 4px", color: "#333" }} {...props} />,
+                      p: ({node, ...props}) => <p style={{ margin: "6px 0", lineHeight: 1.7 }} {...props} />,
+                      ul: ({node, ...props}) => <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...props} />,
+                      ol: ({node, ...props}) => <ol style={{ paddingLeft: 20, margin: "6px 0" }} {...props} />,
+                      li: ({node, ...props}) => <li style={{ margin: "3px 0" }} {...props} />,
+                      code: ({node, inline, ...props}) => inline
+                        ? <code style={{ background: "#f0f0f0", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace" }} {...props} />
+                        : <pre style={{ background: "#f8f8f8", padding: "12px", borderRadius: 8, overflow: "auto", fontSize: 12, fontFamily: "monospace", margin: "8px 0" }}><code {...props} /></pre>,
+                      strong: ({node, ...props}) => <strong style={{ fontWeight: 600, color: "#1a1a2e" }} {...props} />,
+                      hr: () => <hr style={{ border: "none", borderTop: "1px solid #f0f0f0", margin: "12px 0" }} />,
+                    }}
+                  >
+                    {item.response}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div ref={bottomRef} />
+      </div>
     </div>
   )
 }
