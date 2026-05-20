@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import inference, metrics
-from app.core.config import settings
+from app.routers import inference, metrics, auth, keys
 
 app = FastAPI(
     title="InferMesh",
@@ -16,12 +15,11 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+app.include_router(auth.router)
+app.include_router(keys.router)
 app.include_router(inference.router)
 app.include_router(metrics.router)
 
 @app.get("/health")
 async def health():
-    return {
-        "status": "ok",
-        "environment": settings.ENVIRONMENT
-    }
+    return {"status": "ok"}
