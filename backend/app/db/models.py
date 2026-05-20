@@ -13,6 +13,8 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=True)
     gemini_api_key: Mapped[str] = mapped_column(String, nullable=True)
+    openai_api_key: Mapped[str] = mapped_column(String, nullable=True)
+    anthropic_api_key: Mapped[str] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
