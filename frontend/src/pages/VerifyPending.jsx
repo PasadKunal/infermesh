@@ -9,6 +9,11 @@ export default function VerifyPending() {
   const navigate = useNavigate()
   const token = location.state?.token
   const email = location.state?.email
+
+  if (!email) {
+    navigate('/login')
+    return null
+  }
   const [resending, setResending] = useState(false)
   const [resent, setResent] = useState(false)
 
