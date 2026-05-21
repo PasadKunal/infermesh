@@ -105,6 +105,11 @@ export default function History() {
                     <span style={{ color: log.cache_hit ? GREEN : "#555", fontSize: 12, fontWeight: log.cache_hit ? 500 : 400 }}>
                       {log.cache_hit ? "FREE" : `$${log.cost_usd.toFixed(6)}`}
                     </span>
+                    {log.eval_score && (
+                      <span style={{ background: log.eval_score >= 8 ? "#0d2010" : log.eval_score >= 6 ? "#1a1500" : "#1a0a0a", border: `1px solid ${log.eval_score >= 8 ? "#22c55e33" : log.eval_score >= 6 ? "#f59e0b33" : "#ef444433"}`, color: log.eval_score >= 8 ? "#22c55e" : log.eval_score >= 6 ? "#f59e0b" : "#ef4444", fontSize: 11, padding: "3px 8px", borderRadius: 20, fontWeight: 500 }}>
+                        {log.eval_score}/10
+                      </span>
+                    )}
                     <span style={{ color: "#333", fontSize: 11 }}>
                       {new Date(log.created_at).toLocaleString()}
                     </span>
