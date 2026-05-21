@@ -4,10 +4,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str
     GEMINI_API_KEY: str
-    DEFAULT_API_KEY: str = "infermesh-dev-key-123"
     SECRET_KEY: str = "infermesh-secret-change-in-production"
     ENCRYPTION_KEY: str = ""
     ENVIRONMENT: str = "development"
+    RESEND_API_KEY: str = ""
+    FRONTEND_URL: str = "http://localhost:5173"
 
     class Config:
         env_file = ".env"

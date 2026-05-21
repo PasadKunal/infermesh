@@ -16,6 +16,8 @@ class User(Base):
     openai_api_key: Mapped[str] = mapped_column(String, nullable=True)
     anthropic_api_key: Mapped[str] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verification_token: Mapped[str] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 class APIKey(Base):
