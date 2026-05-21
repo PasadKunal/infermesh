@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { apiFetch } from "../api"
 
@@ -8,20 +8,21 @@ export default function VerifyEmail() {
   const [searchParams] = useSearchParams()
   const [status, setStatus] = useState("verifying")
   const navigate = useNavigate()
+  const called = useRef(false)
 
   useEffect(() => {
+    if (called.current) return
+    called.current = true
+
     const token = searchParams.get("token")
     if (!token) { setStatus("error"); return }
-    if (status !== "verifying") return
 
     apiFetch(`/auth/verify-email?token=${token}`, { method: "GET" })
       .then(() => {
         setStatus("success")
-        setTimeout(() => navigate("/dashboard"), 3000)
+        setTimeout(() => navigate("/login"), 3000)
       })
-      .catch(() => {
-        if (status === "verifying") setStatus("error")
-      })
+      .catch(() => setStatus("error"))
   }, [])
 
   return (
@@ -44,7 +45,7 @@ export default function VerifyEmail() {
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
             <p style={{ color: "#fff", fontSize: 16, fontWeight: 500, margin: "0 0 8px" }}>Email verified</p>
-            <p style={{ color: "#555", fontSize: 13, margin: 0 }}>Redirecting to dashboard...</p>
+            <p style={{ color: "#555", fontSize: 13, margin: 0 }}>Redirecting to login...</p>
           </>
         )}
 
@@ -55,8 +56,8 @@ export default function VerifyEmail() {
             </div>
             <p style={{ color: "#fff", fontSize: 16, fontWeight: 500, margin: "0 0 8px" }}>Invalid or expired link</p>
             <p style={{ color: "#555", fontSize: 13, margin: "0 0 24px" }}>The verification link may have expired.</p>
-            <button onClick={() => navigate("/dashboard")} style={{ padding: "10px 20px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-              Go to dashboard
+            <button onClick={() => navigate("/login")} style={{ padding: "10px 20px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+              Go to login
             </button>
           </>
         )}
