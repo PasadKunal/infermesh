@@ -74,9 +74,10 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or expired verification token")
-    user.is_verified = True
-    user.verification_token = None
-    await db.commit()
+    if not user.is_verified:
+        user.is_verified = True
+        user.verification_token = None
+        await db.commit()
     return {"message": "Email verified successfully"}
 
 @router.get("/me")

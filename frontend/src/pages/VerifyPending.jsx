@@ -9,13 +9,25 @@ export default function VerifyPending() {
   const navigate = useNavigate()
   const token = location.state?.token
   const email = location.state?.email
-
-  if (!email) {
-    navigate('/login')
-    return null
-  }
   const [resending, setResending] = useState(false)
   const [resent, setResent] = useState(false)
+
+  if (!email) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 16, padding: "48px 40px", maxWidth: 440, width: "100%", textAlign: "center" }}>
+          <div style={{ width: 32, height: 32, background: ACCENT, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>I</span>
+          </div>
+          <h1 style={{ color: "#fff", fontSize: 18, fontWeight: 600, margin: "0 0 8px" }}>Check your email</h1>
+          <p style={{ color: "#555", fontSize: 13, margin: "0 0 24px" }}>A verification link was sent to your email address.</p>
+          <button onClick={() => navigate("/login")} style={{ padding: "10px 20px", background: ACCENT, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+            Back to login
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const resend = async () => {
     if (!token) return
@@ -45,9 +57,7 @@ export default function VerifyPending() {
         </div>
 
         <h1 style={{ color: "#fff", fontSize: 20, fontWeight: 600, margin: "0 0 8px", letterSpacing: "-0.02em" }}>Check your email</h1>
-        <p style={{ color: "#555", fontSize: 13, margin: "0 0 6px", lineHeight: 1.6 }}>
-          We sent a verification link to
-        </p>
+        <p style={{ color: "#555", fontSize: 13, margin: "0 0 6px", lineHeight: 1.6 }}>We sent a verification link to</p>
         <p style={{ color: "#ccc", fontSize: 14, fontWeight: 500, margin: "0 0 28px" }}>{email}</p>
 
         <div style={{ background: "#161616", border: "1px solid #222", borderRadius: 10, padding: "16px", marginBottom: 24, textAlign: "left" }}>
@@ -65,7 +75,7 @@ export default function VerifyPending() {
         {resent ? (
           <p style={{ color: "#22c55e", fontSize: 13, margin: "0 0 16px" }}>Verification email resent.</p>
         ) : (
-          <button onClick={resend} disabled={resending} style={{ background: "transparent", border: "none", color: ACCENT, fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 16 }}>
+          <button onClick={resend} disabled={resending} style={{ background: "transparent", border: "none", color: ACCENT, fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 16, display: "block", margin: "0 auto 16px" }}>
             {resending ? "Sending..." : "Resend verification email"}
           </button>
         )}
