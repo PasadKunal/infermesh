@@ -123,21 +123,21 @@ export default function Playground() {
     }
   }
 
-  const inputStyle = { padding: "8px 12px", background: "#141414", border: "1px solid #2a2a2a", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none" }
+  const inputStyle = { padding: "8px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 13, outline: "none" }
 
   const mdComponents = {
-    h1: ({node, ...p}) => <h1 style={{ fontSize: 16, fontWeight: 600, color: "#fff", margin: "14px 0 6px" }} {...p} />,
-    h2: ({node, ...p}) => <h2 style={{ fontSize: 15, fontWeight: 600, color: "#fff", margin: "12px 0 6px" }} {...p} />,
+    h1: ({node, ...p}) => <h1 style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", margin: "14px 0 6px" }} {...p} />,
+    h2: ({node, ...p}) => <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", margin: "12px 0 6px" }} {...p} />,
     h3: ({node, ...p}) => <h3 style={{ fontSize: 14, fontWeight: 600, color: "#ddd", margin: "10px 0 4px" }} {...p} />,
-    h4: ({node, ...p}) => <h4 style={{ fontSize: 13, fontWeight: 600, color: "#ccc", margin: "8px 0 4px" }} {...p} />,
+    h4: ({node, ...p}) => <h4 style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", margin: "8px 0 4px" }} {...p} />,
     p: ({node, ...p}) => <p style={{ margin: "6px 0" }} {...p} />,
     ul: ({node, ...p}) => <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...p} />,
     ol: ({node, ...p}) => <ol style={{ paddingLeft: 20, margin: "6px 0" }} {...p} />,
     li: ({node, ...p}) => <li style={{ margin: "3px 0" }} {...p} />,
     code: ({node, inline, ...p}) => inline
-      ? <code style={{ background: "#1a1a1a", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace", color: "#a78bfa" }} {...p} />
-      : <pre style={{ background: "#0d0d0d", border: "1px solid #222", padding: "14px", borderRadius: 8, overflow: "auto", fontSize: 12, fontFamily: "monospace", margin: "10px 0" }}><code style={{ color: "#a78bfa" }} {...p} /></pre>,
-    strong: ({node, ...p}) => <strong style={{ color: "#fff", fontWeight: 600 }} {...p} />,
+      ? <code style={{ background: "var(--bg-tertiary)", padding: "1px 6px", borderRadius: 4, fontSize: 12, fontFamily: "monospace", color: "#a78bfa" }} {...p} />
+      : <pre style={{ background: "#0d0d0d", border: "1px solid var(--border)", padding: "14px", borderRadius: 8, overflow: "auto", fontSize: 12, fontFamily: "monospace", margin: "10px 0" }}><code style={{ color: "#a78bfa" }} {...p} /></pre>,
+    strong: ({node, ...p}) => <strong style={{ color: "var(--text)", fontWeight: 600 }} {...p} />,
     hr: () => <hr style={{ border: "none", borderTop: "1px solid #1f1f1f", margin: "14px 0" }} />,
   }
 
@@ -148,16 +148,16 @@ export default function Playground() {
         <div style={{ padding: "24px 32px", borderBottom: "1px solid #1a1a1a", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <h1 style={{ color: "#fff", fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: "-0.02em" }}>Playground</h1>
-              <p style={{ color: "#555", fontSize: 13, margin: "2px 0 0" }}>Test your prompts and watch the cache in action</p>
+              <h1 style={{ color: "var(--text)", fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: "-0.02em" }}>Playground</h1>
+              <p style={{ color: "var(--text-3)", fontSize: 13, margin: "2px 0 0" }}>Test your prompts and watch the cache in action</p>
             </div>
             <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
-                <p style={{ color: "#555", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Session hits</p>
+              <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
+                <p style={{ color: "var(--text-3)", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Session hits</p>
                 <p style={{ color: ACCENT, fontSize: 18, fontWeight: 600, margin: 0 }}>{sessionHits}/{history.length || 0}</p>
               </div>
-              <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
-                <p style={{ color: "#555", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>All-time saved</p>
+              <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
+                <p style={{ color: "var(--text-3)", fontSize: 11, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>All-time saved</p>
                 <p style={{ color: GREEN, fontSize: 18, fontWeight: 600, margin: 0 }}>${totalSaved.toFixed(6)}</p>
               </div>
             </div>
@@ -173,11 +173,11 @@ export default function Playground() {
 
           {history.length === 0 && !streaming && hasGeminiKey && (
             <div style={{ textAlign: "center", padding: "80px 40px" }}>
-              <div style={{ width: 48, height: 48, background: "#141414", border: "1px solid #222", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <div style={{ width: 48, height: 48, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
-              <p style={{ color: "#ccc", fontSize: 15, fontWeight: 500, margin: "0 0 8px" }}>Send your first prompt</p>
-              <p style={{ color: "#444", fontSize: 13, margin: "0 auto", maxWidth: 360 }}>
+              <p style={{ color: "var(--text)", fontSize: 15, fontWeight: 500, margin: "0 0 8px" }}>Send your first prompt</p>
+              <p style={{ color: "var(--text-3)", fontSize: 13, margin: "0 auto", maxWidth: 360 }}>
                 Try asking the same question twice. The second response will be instant and free thanks to semantic caching.
               </p>
             </div>
@@ -185,9 +185,9 @@ export default function Playground() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 800, margin: "0 auto" }}>
             {history.map(item => (
-              <div key={item.id} style={{ background: "#111", border: `1px solid ${item.cache_hit ? "#22c55e22" : item.error ? "#ef444422" : "#1f1f1f"}`, borderRadius: 12, overflow: "hidden" }}>
+              <div key={item.id} style={{ background: "var(--card-bg)", border: `1px solid ${item.cache_hit ? "#22c55e22" : item.error ? "#ef444422" : "#1f1f1f"}`, borderRadius: 12, overflow: "hidden" }}>
                 <div style={{ padding: "12px 18px", background: item.cache_hit ? "#0a1f0a" : item.error ? "#1a0a0a" : "#161616", borderBottom: `1px solid ${item.cache_hit ? "#22c55e22" : "#1a1a1a"}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: "#ccc", margin: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)", margin: 0 }}>
                     {item.prompt.length > 80 ? item.prompt.slice(0, 80) + "..." : item.prompt}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -195,7 +195,7 @@ export default function Playground() {
                       ? <span style={{ background: "#0d2010", border: "1px solid #22c55e33", color: GREEN, fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>Cache hit</span>
                       : <span style={{ background: "#1a1a2e", border: "1px solid #5865f233", color: ACCENT, fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>{item.provider}</span>
                     }
-                    <span style={{ color: "#444", fontSize: 12 }}>{item.latency_ms}ms</span>
+                    <span style={{ color: "var(--text-3)", fontSize: 12 }}>{item.latency_ms}ms</span>
                     <span style={{ color: item.cache_hit ? GREEN : "#555", fontSize: 12, fontWeight: item.cache_hit ? 500 : 400 }}>
                       {item.cache_hit ? "FREE" : `$${item.cost_usd.toFixed(6)}`}
                     </span>
@@ -205,7 +205,7 @@ export default function Playground() {
                   </div>
                 </div>
                 <div style={{ padding: "16px 18px", maxHeight: 400, overflowY: "auto" }}>
-                  <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.75 }}>
+                  <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.75 }}>
                     <ReactMarkdown components={mdComponents}>{item.response}</ReactMarkdown>
                   </div>
                 </div>
@@ -213,9 +213,9 @@ export default function Playground() {
             ))}
 
             {streaming && (
-              <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 12, overflow: "hidden" }}>
-                <div style={{ padding: "12px 18px", background: "#161616", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: "#ccc", margin: 0 }}>
+              <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "12px 18px", background: "var(--card-bg)", borderBottom: "1px solid #1a1a1a", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)", margin: 0 }}>
                     {streamingPrompt.length > 80 ? streamingPrompt.slice(0, 80) + "..." : streamingPrompt}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -224,11 +224,11 @@ export default function Playground() {
                         <div key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: ACCENT, animation: `bounce .8s ${i * 0.15}s infinite` }} />
                       ))}
                     </div>
-                    <span style={{ color: "#444", fontSize: 12 }}>streaming...</span>
+                    <span style={{ color: "var(--text-3)", fontSize: 12 }}>streaming...</span>
                   </div>
                 </div>
                 <div style={{ padding: "16px 18px", maxHeight: 400, overflowY: "auto" }}>
-                  <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.75 }}>
+                  <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.75 }}>
                     <ReactMarkdown components={mdComponents}>{streamingText || " "}</ReactMarkdown>
                   </div>
                 </div>
@@ -238,7 +238,7 @@ export default function Playground() {
           <div ref={bottomRef} />
         </div>
 
-        <div style={{ padding: "16px 32px", borderTop: "1px solid #1a1a1a", background: "#0f0f0f", flexShrink: 0 }}>
+        <div style={{ padding: "16px 32px", borderTop: "1px solid #1a1a1a", background: "var(--bg)", flexShrink: 0 }}>
           <div style={{ maxWidth: 800, margin: "0 auto" }}>
             <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
               <select value={selectedKey || ""} onChange={e => setSelectedKey(e.target.value)} style={inputStyle}>
@@ -258,7 +258,7 @@ export default function Playground() {
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt() } }}
                 placeholder="Type a prompt and press Enter..."
                 rows={2}
-                style={{ flex: 1, padding: "11px 14px", background: "#141414", border: "1px solid #2a2a2a", borderRadius: 10, color: "#fff", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", lineHeight: 1.6 }}
+                style={{ flex: 1, padding: "11px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", lineHeight: 1.6 }}
               />
               <button
                 onClick={sendPrompt}
@@ -268,7 +268,7 @@ export default function Playground() {
                 {streaming ? "..." : "Send"}
               </button>
             </div>
-            <p style={{ color: "#333", fontSize: 11, margin: "8px 0 0" }}>Enter to send, Shift+Enter for new line</p>
+            <p style={{ color: "var(--text-3)", fontSize: 11, margin: "8px 0 0" }}>Enter to send, Shift+Enter for new line</p>
           </div>
         </div>
       </div>

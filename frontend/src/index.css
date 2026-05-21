@@ -1,3 +1,71 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-*, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; background: #0a0a0a; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-tertiary: #f3f4f6;
+  --border: #e5e7eb;
+  --border-hover: #d1d5db;
+  --text: #111827;
+  --text-2: #4b5563;
+  --text-3: #9ca3af;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-bg: #eef2ff;
+  --accent-text: #4338ca;
+  --green: #16a34a;
+  --green-bg: #f0fdf4;
+  --green-border: #bbf7d0;
+  --red: #dc2626;
+  --red-bg: #fef2f2;
+  --red-border: #fecaca;
+  --amber: #d97706;
+  --amber-bg: #fffbeb;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e5e7eb;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+}
+
+[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --border: #262626;
+  --border-hover: #404040;
+  --text: #f9fafb;
+  --text-2: #9ca3af;
+  --text-3: #6b7280;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --accent-bg: #1e1b4b;
+  --accent-text: #a5b4fc;
+  --green: #22c55e;
+  --green-bg: #052e16;
+  --green-border: #166534;
+  --red: #f87171;
+  --red-bg: #1c0a0a;
+  --red-border: #7f1d1d;
+  --amber: #fbbf24;
+  --amber-bg: #1c1200;
+  --sidebar-bg: #111111;
+  --sidebar-border: #1f1f1f;
+  --card-bg: #111111;
+  --input-bg: #1a1a1a;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: 14px;
+}
