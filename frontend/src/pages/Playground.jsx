@@ -18,7 +18,9 @@ export default function Playground() {
   const [streamingPrompt, setStreamingPrompt] = useState("")
   const [keys, setKeys] = useState([])
   const [selectedKey, setSelectedKey] = useState(null)
-  const [hasGeminiKey, setHasGeminiKey] = useState(true)
+  const [hasGeminiKey, setHasGeminiKey] = useState(false)
+  const [hasOpenAIKey, setHasOpenAIKey] = useState(false)
+  const [hasAnthropicKey, setHasAnthropicKey] = useState(false)
   const [totalSaved, setTotalSaved] = useState(0)
   const bottomRef = useRef(null)
 
@@ -34,9 +36,9 @@ export default function Playground() {
       if (k.length > 0) setSelectedKey(k[0].full_key)
     }).catch(console.error)
 
-    apiFetch("/auth/gemini-key", {}, token)
-      .then(d => setHasGeminiKey(d.has_key))
-      .catch(console.error)
+    apiFetch("/auth/gemini-key", {}, token).then(d => setHasGeminiKey(d.has_key)).catch(console.error)
+    apiFetch("/auth/openai-key", {}, token).then(d => setHasOpenAIKey(d.has_key)).catch(console.error)
+    apiFetch("/auth/anthropic-key", {}, token).then(d => setHasAnthropicKey(d.has_key)).catch(console.error)
   }, [token])
 
   useEffect(() => {
@@ -165,13 +167,13 @@ export default function Playground() {
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
-          {!hasGeminiKey && (
+          {!hasGeminiKey && !hasOpenAIKey && !hasAnthropicKey && (
             <div style={{ background: "#1a1500", border: "1px solid #f59e0b33", borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
               <p style={{ color: "#f59e0b", fontSize: 13, margin: 0 }}>Add your Gemini API key in Settings to use the playground</p>
             </div>
           )}
 
-          {history.length === 0 && !streaming && hasGeminiKey && (
+          {history.length === 0 && !streaming && (hasGeminiKey || hasOpenAIKey || hasAnthropicKey) && (
             <div style={{ textAlign: "center", padding: "80px 40px" }}>
               <div style={{ width: 48, height: 48, background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -246,9 +248,24 @@ export default function Playground() {
                 {keys.map(k => <option key={k.id} value={k.full_key}>{k.name}</option>)}
               </select>
               <select value={model} onChange={e => setModel(e.target.value)} style={inputStyle}>
-                <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
-                <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
-                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                {hasGeminiKey && <>
+                  <option disabled style={{ color: "var(--text-3)", fontSize: 11 }}>-- Gemini --</option>
+                  <option value="gemini-3.1-flash-lite-preview">gemini-3.1-flash-lite-preview</option>
+                  <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+                  <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                </>}
+                {hasOpenAIKey && <>
+                  <option disabled style={{ color: "var(--text-3)", fontSize: 11 }}>-- OpenAI --</option>
+                  <option value="gpt-4o-mini">gpt-4o-mini</option>
+                  <option value="gpt-4o">gpt-4o</option>
+                  <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                </>}
+                {hasAnthropicKey && <>
+                  <option disabled style={{ color: "var(--text-3)", fontSize: 11 }}>-- Anthropic --</option>
+                  <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022</option>
+                  <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet-20241022</option>
+                  <option value="claude-opus-4-5">claude-opus-4-5</option>
+                </>}
               </select>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
