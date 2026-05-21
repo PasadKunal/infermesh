@@ -20,8 +20,7 @@ export default function Register() {
     setError("")
     try {
       const data = await apiFetch("/auth/register", { method: "POST", body: JSON.stringify({ email, password, name }) })
-      login(data.token, { email: data.email, name: data.name })
-      navigate("/dashboard")
+      navigate("/verify-pending", { state: { token: data.token, email: data.email } })
     } catch (err) {
       setError(err.message)
     } finally {

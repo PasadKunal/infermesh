@@ -22,7 +22,11 @@ export default function Login() {
       login(data.token, { email: data.email, name: data.name })
       navigate("/dashboard")
     } catch (err) {
-      setError(err.message)
+      if (err.message && err.message.includes("verify")) {
+        setError("Please verify your email before logging in. Check your inbox.")
+      } else {
+        setError(err.message)
+      }
     } finally {
       setLoading(false)
     }
