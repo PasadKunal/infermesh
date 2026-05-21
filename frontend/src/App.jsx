@@ -7,6 +7,7 @@ import Settings from "./pages/Settings"
 import Playground from "./pages/Playground"
 import History from "./pages/History"
 import VerifyEmail from "./pages/VerifyEmail"
+import VerifyPending from "./pages/VerifyPending"
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-pending" element={<VerifyPending />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/playground" element={<ProtectedRoute><Playground /></ProtectedRoute>} />
