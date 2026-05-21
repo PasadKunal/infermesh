@@ -21,17 +21,14 @@ class OpenAIProvider(BaseProvider):
 
     async def complete(self, request: InferenceRequest) -> InferenceResponse:
         start = time.time()
-
         response = await self.client.chat.completions.create(
             model=request.model,
             messages=[{"role": m.role, "content": m.content} for m in request.messages],
             max_tokens=request.max_tokens
         )
-
         latency_ms = int((time.time() - start) * 1000)
         prompt_tokens = response.usage.prompt_tokens
         completion_tokens = response.usage.completion_tokens
-
         return InferenceResponse(
             provider=self.name,
             model=request.model,
@@ -42,8 +39,23 @@ class OpenAIProvider(BaseProvider):
             latency_ms=latency_ms
         )
 
+    async def stream(self, request: InferenceRequest):
+        response = await self.client.chat.completions.create(
+            model=request.model,
+            messages=[{"role": m.role, "content": m.content} for m in request.messages],
+            max_tokens=request.max_tokens,
+            stream=True,
+            stream_options={"include_usage": True}
+        )
+        prompt_tokens = 0
+        completion_tokens = 0
+        async for chunk in response:
+            if chunk.usage:
+                prompt_tokens = chunk.usage.prompt_tokens
+                completion_tokens = chunk.usage.completion_tokens
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content, prompt_tokens, completion_tokens
+
     def estimate_cost(self, prompt_tokens: int, completion_tokens: int, model: str = "gpt-4o-mini") -> float:
         pricing = PRICING.get(model, PRICING["gpt-4o-mini"])
-        input_cost = (prompt_tokens / 1_000_000) * pricing["input"]
-        output_cost = (completion_tokens / 1_000_000) * pricing["output"]
-        return round(input_cost + output_cost, 6)
+        return round((prompt_tokens / 1_000_000) * pricing["input"] + (completion_tokens / 1_000_000) * pricing["output"], 6)

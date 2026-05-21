@@ -9,6 +9,7 @@ PRICING = {
     "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     "gemini-2.0-flash-lite": {"input": 0.075, "output": 0.30},
     "gemini-3.1-flash-lite-preview": {"input": 0.075, "output": 0.30},
+    "gemini-1.5-flash": {"input": 0.075, "output": 0.30},
 }
 
 class GeminiProvider(BaseProvider):
@@ -55,13 +56,18 @@ class GeminiProvider(BaseProvider):
             )
             for m in request.messages
         ]
+        prompt_tokens = 0
+        completion_tokens = 0
         for chunk in self.client.models.generate_content_stream(
             model=request.model,
             contents=contents,
             config=types.GenerateContentConfig(max_output_tokens=request.max_tokens)
         ):
+            if chunk.usage_metadata:
+                prompt_tokens = chunk.usage_metadata.prompt_token_count or prompt_tokens
+                completion_tokens = chunk.usage_metadata.candidates_token_count or completion_tokens
             if chunk.text:
-                yield chunk.text
+                yield chunk.text, prompt_tokens, completion_tokens
 
     def estimate_cost(self, prompt_tokens: int, completion_tokens: int, model: str = "gemini-2.0-flash") -> float:
         pricing = PRICING.get(model, PRICING["gemini-2.0-flash"])

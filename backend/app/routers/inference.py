@@ -185,12 +185,17 @@ async def chat_stream(
 
     async def generate():
         try:
-            async for chunk in provider.stream(request):
+            final_prompt_tokens = 0
+            final_completion_tokens = 0
+            async for chunk, pt, ct in provider.stream(request):
                 full_response.append(chunk)
+                if pt: final_prompt_tokens = pt
+                if ct: final_completion_tokens = ct
                 yield f"data: {json.dumps({'text': chunk, 'cache_hit': False})}\n\n"
 
             latency_ms = int((time.time() - start) * 1000)
             response_text = "".join(full_response)
+            cost = provider.estimate_cost(final_prompt_tokens, final_completion_tokens, request.model) if hasattr(provider, 'estimate_cost') else 0.0
 
             await store_cache(user_message, response_text, request.model, db)
 
@@ -201,9 +206,9 @@ async def chat_stream(
                 model=request.model,
                 prompt_text=user_message,
                 response_text=response_text,
-                prompt_tokens=0,
-                completion_tokens=0,
-                cost_usd=0.0,
+                prompt_tokens=final_prompt_tokens,
+                completion_tokens=final_completion_tokens,
+                cost_usd=cost,
                 latency_ms=latency_ms,
                 cache_hit=False,
                 status_code=200

@@ -23,29 +23,15 @@ class AnthropicProvider(BaseProvider):
 
     async def complete(self, request: InferenceRequest) -> InferenceResponse:
         start = time.time()
-
-        system_msg = next(
-            (m.content for m in request.messages if m.role == "system"), None
-        )
-        messages = [
-            {"role": m.role, "content": m.content}
-            for m in request.messages if m.role != "system"
-        ]
-
-        kwargs = {
-            "model": request.model,
-            "max_tokens": request.max_tokens,
-            "messages": messages
-        }
+        system_msg = next((m.content for m in request.messages if m.role == "system"), None)
+        messages = [{"role": m.role, "content": m.content} for m in request.messages if m.role != "system"]
+        kwargs = {"model": request.model, "max_tokens": request.max_tokens, "messages": messages}
         if system_msg:
             kwargs["system"] = system_msg
-
         response = await self.client.messages.create(**kwargs)
-
         latency_ms = int((time.time() - start) * 1000)
         prompt_tokens = response.usage.input_tokens
         completion_tokens = response.usage.output_tokens
-
         return InferenceResponse(
             provider=self.name,
             model=request.model,
@@ -56,8 +42,25 @@ class AnthropicProvider(BaseProvider):
             latency_ms=latency_ms
         )
 
+    async def stream(self, request: InferenceRequest):
+        system_msg = next((m.content for m in request.messages if m.role == "system"), None)
+        messages = [{"role": m.role, "content": m.content} for m in request.messages if m.role != "system"]
+        kwargs = {"model": request.model, "max_tokens": request.max_tokens, "messages": messages}
+        if system_msg:
+            kwargs["system"] = system_msg
+        prompt_tokens = 0
+        completion_tokens = 0
+        async with self.client.messages.stream(**kwargs) as stream:
+            async for event in stream:
+                if hasattr(event, 'type'):
+                    if event.type == 'message_start':
+                        prompt_tokens = event.message.usage.input_tokens
+                    elif event.type == 'message_delta':
+                        completion_tokens = event.usage.output_tokens
+                    elif event.type == 'content_block_delta':
+                        if hasattr(event.delta, 'text'):
+                            yield event.delta.text, prompt_tokens, completion_tokens
+
     def estimate_cost(self, prompt_tokens: int, completion_tokens: int, model: str = "claude-3-5-haiku-20241022") -> float:
         pricing = PRICING.get(model, PRICING["claude-3-5-haiku-20241022"])
-        input_cost = (prompt_tokens / 1_000_000) * pricing["input"]
-        output_cost = (completion_tokens / 1_000_000) * pricing["output"]
-        return round(input_cost + output_cost, 6)
+        return round((prompt_tokens / 1_000_000) * pricing["input"] + (completion_tokens / 1_000_000) * pricing["output"], 6)
