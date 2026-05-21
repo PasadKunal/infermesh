@@ -46,6 +46,8 @@ class InferenceLog(Base):
     status_code: Mapped[int] = mapped_column(Integer, default=200)
     prompt_text: Mapped[str] = mapped_column(Text, nullable=True)
     response_text: Mapped[str] = mapped_column(Text, nullable=True)
+    eval_score: Mapped[float] = mapped_column(Numeric(4, 2), nullable=True)
+    eval_data: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 class PromptCache(Base):

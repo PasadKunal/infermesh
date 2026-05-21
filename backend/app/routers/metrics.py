@@ -140,6 +140,8 @@ async def history(
             "latency_ms": l.latency_ms,
             "cost_usd": float(l.cost_usd or 0),
             "cache_hit": l.cache_hit,
+            "eval_score": float(l.eval_score) if l.eval_score else None,
+            "eval_data": l.eval_data,
             "created_at": l.created_at.isoformat()
         }
         for l in logs if l.prompt_text

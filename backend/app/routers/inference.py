@@ -14,6 +14,7 @@ from app.services.auth import get_user_from_api_key
 from app.services.encryption import decrypt
 from app.db.postgres import get_db
 from app.db.models import InferenceLog, APIKey
+from app.tasks.eval import score_response
 
 router = APIRouter(prefix="/v1", tags=["inference"])
 
@@ -117,6 +118,8 @@ async def chat(
     )
     db.add(log)
     await db.commit()
+    await db.refresh(log)
+    score_response.delay(str(log.id), user_message, response.content)
     return response
 
 from fastapi.responses import StreamingResponse as FastAPIStreamingResponse
@@ -208,6 +211,7 @@ async def chat_stream(
             db.add(log)
             await db.commit()
 
+            score_response.delay(str(log.id), user_message, response_text)
             yield f"data: {json.dumps({'done': True, 'cache_hit': False, 'latency_ms': latency_ms})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
