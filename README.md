@@ -5,8 +5,8 @@ A self-hosted LLM inference gateway with semantic caching, multi-provider routin
 ## Live Demo
 
 - Dashboard: https://infermesh.vercel.app
-- API: https://infermesh-production.up.railway.app
-- API Docs: https://infermesh-production.up.railway.app/docs
+- API: https://infermesh-api.onrender.com
+- API Docs: https://infermesh-api.onrender.com/docs
 
 ## Features
 
@@ -65,7 +65,7 @@ Celery Worker (background)
 5. Send requests:
 
 ```bash
-curl -X POST https://infermesh-production.up.railway.app/v1/chat/stream \
+curl -X POST https://infermesh-api.onrender.com/v1/chat/stream \
   -H "Content-Type: application/json" \
   -H "x-api-key: im-your-key-here" \
   -d '{
