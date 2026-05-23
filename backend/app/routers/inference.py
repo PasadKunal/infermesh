@@ -119,7 +119,8 @@ async def chat(
     db.add(log)
     await db.commit()
     await db.refresh(log)
-    score_response.delay(str(log.id), user_message, response.content)
+    user_gemini_key = decrypt(user.gemini_api_key) if user.gemini_api_key else None
+    score_response.delay(str(log.id), user_message, response.content, user_gemini_key)
     return response
 
 from fastapi.responses import StreamingResponse as FastAPIStreamingResponse
@@ -170,6 +171,7 @@ async def chat_stream(
         )
         db.add(log)
         await db.commit()
+        await db.refresh(log)
 
         async def cache_stream():
             words = cached_response.split(" ")
@@ -216,7 +218,8 @@ async def chat_stream(
             db.add(log)
             await db.commit()
 
-            score_response.delay(str(log.id), user_message, response_text)
+            user_gemini_key = decrypt(user.gemini_api_key) if user.gemini_api_key else None
+            score_response.delay(str(log.id), user_message, response_text, user_gemini_key)
             yield f"data: {json.dumps({'done': True, 'cache_hit': False, 'latency_ms': latency_ms})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
