@@ -2,6 +2,7 @@ services:
   - type: web
     name: infermesh-api
     runtime: docker
+    plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
@@ -28,6 +29,7 @@ services:
   - type: worker
     name: infermesh-worker
     runtime: docker
+    plan: free
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     dockerCommand: celery -A app.celery_app.celery worker --loglevel=info
